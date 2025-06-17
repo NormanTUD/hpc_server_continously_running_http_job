@@ -249,12 +249,15 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
     """
     try:
         user_expr = "$(whoami)"
-        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -Fx {shlex.quote(args.hpc_job_name)} || true"
+        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -F {shlex.quote(args.hpc_job_name)} || true"
+        print(list_cmd)
         cp = await ssh_run(cfg, list_cmd)
         lines = cp.stdout.strip().splitlines()
 
-        if not lines:
-            # Job nicht in der squeue
+        if len(lines) == 0:
+            print(lines)
+            if args.debug:
+                console.log("job_status_in_squeue: job not in squeue")
             return None
 
         for line in lines:
