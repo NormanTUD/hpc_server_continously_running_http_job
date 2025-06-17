@@ -471,6 +471,7 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--debug", action="store_true", help="Verbose local shell output")
     parser.add_argument("--retries", type=int, default=3, help="SSH retry attempts before using fallback")
     parser.add_argument("--local-port", type=int, default=8000, help="Local port to expose the remote service")
+    parser.add_argument("--heartbeat-time", type=int, default=10, help="Time to re-check if the server is still running properly")
     parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
     parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to hpc_system_server_runner)", default="hpc_system_server_runner")
@@ -506,7 +507,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
         async def monitor_job():
             try:
                 while True:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(args.heartbeat_time)
                     await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
             except Exception as e:
                 console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
