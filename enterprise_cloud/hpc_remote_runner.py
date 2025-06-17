@@ -526,7 +526,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
                             pid, name = existing_proc_info
 
                             if args.debug:
-                                console.log(f"Local-Port is already used by process {PID} ({name}). Will kill it to restart it...")
+                                console.log(f"Local-Port is already used by process {pid} ({name}). Will kill it to restart it...")
 
                             kill_process(pid)
 
