@@ -49,6 +49,9 @@ from rich.table import Table
 from rich.text import Text
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_fixed
 
+host = None
+port = None
+
 try:
     from subprocess import Popen, DEVNULL, PIPE
 except ImportError as err:  # pragma: no cover
@@ -412,7 +415,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
                 host, port_s = host_port.split(":", 1)
                 port = int(port_s)
 
-                console.print(f"[green]Remote server: {host}:{port}[/green]")
+                if args.debug:
+                    console.print(f"[green]Remote server: {host}:{port}[/green]")
                 return host, port
 
             except Exception as exc:
@@ -604,6 +608,8 @@ def kill_process(pid: int) -> None:
 
 @beartype
 async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
+    global host, port
+
     """
     Execute the entire workflow for *one* remote host.
 
@@ -626,13 +632,18 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
             fwd = start_port_forward(cfg, host, port, args.local_port)
 
             async def monitor_job():
+                global host, port
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully"):
-                            ret = await read_remote_host_port(cfg)
-                            if ret is not None:
-                                host, port = ret
+                        ret = await read_remote_host_port(cfg)
+                        if ret is not None:
+                            new_host, new_port = ret
+
+                            if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully") or new_host != host or new_port != port:
+                                host = new_host
+                                port = new_port
+
                                 existing_proc_info = find_process_using_port(args.local_port)
                                 if existing_proc_info:
                                     pid, name = existing_proc_info
@@ -643,8 +654,8 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
                                     kill_process(pid)
 
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
-                            else:
-                                console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
+                        else:
+                            console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
                 except Exception as e:
                     console.print(f"[red]❌Remote job on {cfg.target} appears to have stopped: {e}[/red]")
                     try:
