@@ -35,6 +35,7 @@ import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Optional
+import getpass
 
 from beartype import beartype
 from rich.console import Console
@@ -62,10 +63,12 @@ console: Final = Console(highlight=False)
 @dataclass(slots=True)
 class SSHConfig:
     target: str
-    jumphost: Optional[str]
-    retries: int
-    debug: bool
-
+    jumphost_url: str | None = None
+    retries: int = 3
+    debug: bool = False
+    username: str | None = None
+    jumphost: str | None = None
+    jumphost_username: str | None = None
 
 @beartype
 def run_local(cmd: str, debug: bool = False, timeout: Optional[int] = 60) -> subprocess.CompletedProcess:
@@ -128,7 +131,7 @@ async def ssh_run(
             if cp.returncode != 0:
                 msg = Text(f"SSH command failed (attempt {attempt.retry_state.attempt_number}): ", style="bold red")
                 msg.append(remote_cmd)
-                msg.append_text(f"\n{cp.stderr.strip()}", style="red")
+                msg.append_text(f"\n{cp.stderr.strip()}")
                 console.print(msg)
                 raise subprocess.CalledProcessError(cp.returncode, cp.args, cp.stdout, cp.stderr)
             return cp
@@ -305,6 +308,9 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--debug", action="store_true", help="Verbose local shell output")
     parser.add_argument("--retries", type=int, default=3, help="SSH retry attempts before using fallback")
     parser.add_argument("--local-port", type=int, default=8000, help="Local port to expose the remote service")
+    parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
+    parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
+
     return parser
 
 
@@ -334,10 +340,23 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     parser = build_cli()
     args = parser.parse_args()
 
+    if not args.jumphost_username:
+        args.jumphost_username = args.username
+
     console.print(f":rocket:  Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
 
+    target_url = f"{args.username}@{args.hpc_system_url}"
+    jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}"
+
     # Try primary host
-    primary_cfg = SSHConfig(args.hpc_system_url, args.jumphost_url, args.retries, args.debug)
+    primary_cfg = SSHConfig(
+        target          = target_url,
+        jumphost_url    = jumphost_url,
+        retries         = args.retries,
+        debug           = args.debug,
+        username        = args.username,
+        jumphost_username = args.jumphost_username
+    )
     ok, fwd = await run_with_host(primary_cfg, args.hpc_script_dir)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
@@ -349,8 +368,17 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
             fwd.stop()
             return
 
+    target_url = f"{args.username}@{args.fallback_system_url}"
+
     console.print("[yellow]Trying fallback host…[/yellow]")
-    fallback_cfg = SSHConfig(args.fallback_system_url, args.jumphost_url, args.retries, args.debug)
+    fallback_cfg = SSHConfig(
+        target          = target_url,
+        jumphost_url    = jumphost_url,
+        retries         = args.retries,
+        debug           = args.debug,
+        username        = args.username,
+        jumphost_username = args.jumphost_username
+    )
     ok, fwd = await run_with_host(fallback_cfg, args.hpc_script_dir)
     if not ok:
         console.print("[bold red]Both hosts failed.  Giving up.[/bold red]")
