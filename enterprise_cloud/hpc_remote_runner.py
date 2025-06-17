@@ -319,6 +319,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
 
 
 def start_port_forward(cfg, remote_host, remote_port, local_port):
+    console.rule("[bold]Starting Port Forwarding[/bold]")
+
     try:
         ssh_proxy_command = f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"
         ssh_proxy = paramiko.ProxyCommand(ssh_proxy_command)
