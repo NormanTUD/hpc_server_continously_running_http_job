@@ -218,7 +218,8 @@ def to_absolute(path: str | PosixPath)  -> Path:
 async def ensure_job_running(
     cfg: "SSHConfig",
     remote_script_dir: PosixPath,
-) -> None:
+) -> bool | None:
+    # Returns True if job was startet and False if it couldn't be started. Returns None if no starting was required
     console.rule("[bold]Ensuring server job is active[/bold]")
     user_expr = "$(whoami)"
     job_name = args.hpc_job_name
@@ -231,7 +232,7 @@ async def ensure_job_running(
 
     if cp.stdout.strip() == job_name:
         console.print("[green]✓ Job already running.[/green]")
-        return
+        return None
 
     console.print("[yellow]Job not running – submitting…[/yellow]")
     sbatch_path = f"{remote_script_dir}/slurm.sbatch"
@@ -244,7 +245,7 @@ async def ensure_job_running(
         job_id = int(job_id_line.strip().split()[-1])
     except Exception as e:
         console.print(f"[red]❌ Failed to extract job ID: {e}[/red]")
-        return
+        return False
 
     console.print("[cyan]Waiting for job to appear in queue or start…[/cyan]")
 
@@ -262,7 +263,7 @@ async def ensure_job_running(
 
         if job_state in ("RUNNING"):
             console.print(f"[green]✓ Job is active: {job_state}[/green]")
-            return
+            return True
 
         # Otherwise: check sacct for job status
         check_sacct = (
@@ -276,15 +277,17 @@ async def ensure_job_running(
                 state = parts[1]
                 if state in ("RUNNING"):
                     console.print(f"[green]✓ Job is active in sacct: {state}[/green]")
-                    return
+                    return True
                 elif state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"):
                     console.print(f"[red]❌ Job terminated early: {state}[/red]")
-                    return
+                    return False
 
         await asyncio.sleep(poll_interval)
         elapsed += poll_interval
 
     console.print("[red]❌ Timed out waiting for job to start or appear in system.[/red]")
+
+    return False
 
 
 @beartype
@@ -478,7 +481,18 @@ def build_cli() -> argparse.ArgumentParser:
 
     return parser
 
-
+@beartype
+def kill_process(pid: int, args, console) -> None:
+    try:
+        os.kill(pid, signal.SIGKILL)
+        if args.debug:
+            console.log(f"Process {pid} was terminated with SIGKILL.")
+    except ProcessLookupError:
+        console.print(f"[red]❌ ENo process with PID {pid} was found.[/red]")
+    except PermissionError:
+        console.print(f"[red]❌ EInsufficient permissions to terminate process {pid}.[/red]")
+    except Exception as e:
+        console.print(f"[red]❌ EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
 async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
@@ -494,21 +508,29 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
         if args.copy:
             await rsync_scripts(cfg, local_script_dir, args.hpc_script_dir)
 
-        # Initial job start
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
 
-        # Hole Hostname und Port
         host, port = await read_remote_host_port(cfg)
 
-        # Starte lokalen Forwarding-Prozess
         fwd = start_port_forward(cfg, host, port, args.local_port)
 
-        # Überwache weiterhin, ob der Slurm-Job noch läuft
         async def monitor_job():
             try:
                 while True:
                     await asyncio.sleep(args.heartbeat_time)
-                    await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+                    if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir)):
+                        host, port = await read_remote_host_port(cfg)
+
+                        existing_proc_info = find_process_using_port(args.local_port)
+                        if existing_proc_info:
+                            pid, name = existing_proc_info
+
+                            if args.debug:
+                                console.log(f"Local-Port is already used by process {PID} ({name}). Will kill it to restart it...")
+
+                            kill_process(pid)
+
+                            fwd = start_port_forward(cfg, host, port, args.local_port)
             except Exception as e:
                 console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
                 try:
