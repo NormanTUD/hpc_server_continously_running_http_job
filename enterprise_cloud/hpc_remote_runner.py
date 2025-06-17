@@ -298,8 +298,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     then parse and return it.
     """
     remote_path = args.server_and_port_file
-    max_attempts = 60
-    delay_seconds = 5
+    max_attempts = args.max_attempts_get_server_and_port
+    delay_seconds = args.delay_between_server_and_port
 
     last_error: Optional[Exception] = None
 
@@ -480,7 +480,8 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
     parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to slurm_runner)", default="slurm_runner")
     parser.add_argument("--server-and-port-file", help="Globally available path to a file where the hostname and port for the host should be put on HPC (defaults to ~/hpc_server_host_and_file)", default="~/hpc_server_host_and_file")
-
+    parser.add_argument("--max-attempts-get-server-and-port", type=int, default=60, help="Number of attempts to get the --server-and-port-file from the HPC (defaults to 60)")
+    parser.add_argument("--delay_between_server_and_port", type=int, default=5, help="Delay between calls to the --server-and-port-file check on HPC (defaults to 5)")
 
     parser.add_argument('--daemonize', action='store_true')
 
