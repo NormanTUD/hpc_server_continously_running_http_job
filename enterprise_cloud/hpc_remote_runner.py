@@ -476,7 +476,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     if not args.jumphost_username:
         args.jumphost_username = args.username
 
-    console.print(f":rocket: Checking if port is already in use")
+    console.rule(f"Checking if port is already in use")
 
     # --- Port already in use? ---
     existing_proc_info = find_process_using_port(args.local_port)
@@ -486,7 +486,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
 
         sys.exit(2)
 
-    console.print(f":rocket:  Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
+    console.print(f"Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
 
     target_url = f"{args.username}@{args.hpc_system_url}"
     jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}"
