@@ -132,7 +132,7 @@ async def ssh_run(
                 msg = f"SSH command failed (attempt {attempt.retry_state.attempt_number}): \n"
                 msg += f"{remote_cmd}\n"
                 msg += f"\n{cp.stderr.strip()}\n"
-                console.print(msg)
+                console.print(f"[red]{msg}[/red]")
                 raise subprocess.CalledProcessError(cp.returncode, cp.args, cp.stdout, cp.stderr)
             return cp
     raise RuntimeError("Unreachable")
