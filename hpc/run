@@ -79,9 +79,19 @@ fi
 # 7. Run the server script
 echo "Starting web server …"
 
-slurmlogpath () {
-	if command -v scontrol 2>/dev/null >/dev/null; then
-		scontrol show job "$1" | grep StdOut | sed -e 's/^[[:space:]]*StdOut=//'
+slurmlogdir () {
+	if command -v scontrol >/dev/null 2>&1; then
+		local logfile
+		logfile=$(scontrol show job "$1" | grep -oP 'StdOut=\K\S+')
+		if [ -n "$logfile" ]; then
+			dirname "$logfile"
+		else
+			echo "Kein StdOut-Pfad gefunden." >&2
+			return 1
+		fi
+	else
+		echo "scontrol nicht verfügbar." >&2
+		return 1
 	fi
 }
 
