@@ -318,7 +318,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     ) from last_error
 
 
-def start_port_forward(cfg, remote_host, remote_port, local_port):
+@beartype
+def start_port_forward(cfg: SSHConfig, remote_host: str, remote_port: int, local_port: int):
     console.rule("[bold]Starting Port Forwarding[/bold]")
 
     try:
