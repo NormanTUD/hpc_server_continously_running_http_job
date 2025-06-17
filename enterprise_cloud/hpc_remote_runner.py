@@ -33,11 +33,10 @@ import subprocess
 import sys
 import textwrap
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PosixPath
 from typing import Final, Optional
 import getpass
 import sys
-from pathlib import PosixPath
 from pprint import pprint
 
 from beartype import beartype
@@ -199,6 +198,10 @@ async def rsync_scripts(
 
     console.print(f"[green]✓ {local_dir} → {cfg.target}:{remote_dir} updated.[/green]")
 
+@beartype
+def to_absolute(path: str | PosixPath)  -> Path:
+    """Convert a relative or absolute path to an absolute path."""
+    return Path(path).expanduser().resolve()
 
 @beartype
 async def ensure_job_running(
@@ -330,7 +333,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
         await verify_slurm_and_key(cfg)
         if args.copy:
             await rsync_scripts(cfg, local_script_dir, "$HOME/hpc_scripts")
-        await ensure_job_running(cfg, args.hpc_script_dir)
+        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
         host, port = await read_remote_host_port(cfg)
         fwd = start_port_forward(cfg, host, port, args.local_port)
         return True, fwd
