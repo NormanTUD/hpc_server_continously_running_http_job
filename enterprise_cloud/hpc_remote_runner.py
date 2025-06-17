@@ -417,6 +417,7 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
 
                 if args.debug:
                     console.print(f"[green]Remote server: {host}:{port}[/green]")
+
                 return host, port
 
             except Exception as exc:
