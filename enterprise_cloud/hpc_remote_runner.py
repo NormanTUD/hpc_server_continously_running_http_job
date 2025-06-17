@@ -13,7 +13,7 @@ Automated helper that
     `rsync --update --archive --delete`.
 5.  Ensures that a Slurm job named *--hpc-job-name* is running for
     the current user; if not, submits `{local_hpc_script_dir}/slurm.sbatch`.
-6.  Once the job is running, reads `~/hpc_server_host_and_file` on the remote
+6.  Once the job is running, reads `--server_and_port_file` on the remote
     side, extracts *internal_host:port*, and sets up an SSH port‑forward so
     that a **local** HTTP endpoint transparently proxies to the remote server,
     optionally hopping through a jumphost.
@@ -294,10 +294,10 @@ async def ensure_job_running(
 @beartype
 async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     """
-    Poll remote ~/hpc_server_host_and_file until it exists and contains "host:port",
+    Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
     """
-    remote_path = "~/hpc_server_host_and_file"
+    remote_path = args.server_and_port_file
     max_attempts = 60
     delay_seconds = 5
 
@@ -479,6 +479,9 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
     parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to slurm_runner)", default="slurm_runner")
+    parser.add_argument("--server-and-port-file", help="Globally available path to a file where the hostname and port for the host should be put on HPC (defaults to ~/hpc_server_host_and_file)", default="~/hpc_server_host_and_file")
+
+
     parser.add_argument('--daemonize', action='store_true')
 
     return parser
