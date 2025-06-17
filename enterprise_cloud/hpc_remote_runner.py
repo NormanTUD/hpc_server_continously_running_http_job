@@ -327,7 +327,7 @@ def start_port_forward(
 ) -> SSHTunnelForwarder:
     """
     Establish an SSH forwarder that maps :local_port → remote_host:remote_port.
-    The forward goes through cfg.target (head‑node) and, optionally, cfg.jumphost.
+    The forward goes through cfg.target (head‑node) and, optionally, cfg.jumphost_url.
     """
     console.rule("[bold]Opening SSH tunnel[/bold]")
     forwarder = SSHTunnelForwarder(
@@ -336,8 +336,8 @@ def start_port_forward(
         remote_bind_address=(remote_host, remote_port),
         local_bind_address=("localhost", local_port),
         ssh_pkey=os.path.expanduser("~/.ssh/id_rsa"),
-        # Paramiko-style jump: we can set `ssh_proxy` here if jumphost
-        ssh_proxy=paramiko.ProxyCommand(f"ssh -W %h:%p {shlex.quote(cfg.jumphost)}") if cfg.jumphost else None,
+        # Paramiko-style jump: we can set `ssh_proxy` here if jumphost_url
+        ssh_proxy=paramiko.ProxyCommand(f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}") if cfg.jumphost_url else None,
     )
     forwarder.start()
     console.print(f"[green]✓ Forwarding localhost:{local_port} → {remote_host}:{remote_port}[/green]")
