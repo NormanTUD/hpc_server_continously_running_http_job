@@ -129,7 +129,7 @@ async def ssh_run(
         with attempt:
             cp = run_local(build_ssh_cmd(cfg, remote_cmd, tty), debug=cfg.debug)
             if cp.returncode != 0:
-                msg = Text(f"SSH command failed (attempt {attempt.retry_state.attempt_number}): ", style="bold red")
+                msg = Text(f"SSH command failed (attempt {attempt.retry_state.attempt_number}): ")
                 msg.append(remote_cmd)
                 msg.append_text(f"\n{cp.stderr.strip()}")
                 console.print(msg)
