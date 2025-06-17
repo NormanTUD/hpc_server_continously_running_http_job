@@ -545,4 +545,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        console.print("\n[red]Interrupted by user.[/red]")
+        console.print("\n[red]You pressed CTRL-c or sent a signal. Program will end.[/red]")
