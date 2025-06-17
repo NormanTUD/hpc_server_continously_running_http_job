@@ -6,8 +6,6 @@
 # Usage: ./run.sh [any‑arguments‑for‑hpc.py]
 #
 
-cd /home/s3811141/hpc_scripts
-
 set -e                      # stop on first un‑handled error
 
 # ──────────────────────────── Utility colours ───────────────────────────────
