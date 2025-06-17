@@ -84,3 +84,6 @@ In the Folder `hpc`, you will find the following files:
 - `run`: Run the hpc.py and install all dependencies if they are not installed
 - `slurm.sbatch`: Start the job, also has a list of SLURM-requirements and chain-starts the next one
 
+## Architecture
+
+![Architecture](architecture/slurm_service_workflow.png)
