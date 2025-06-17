@@ -64,9 +64,17 @@ except ImportError as err:  # pragma: no cover
 
 console: Final = Console(highlight=False)
 
-def dier (msg):
+@beartype
+def dier (msg: Any) -> None:
     pprint(msg)
     sys.exit(10)
+
+@beartype
+def rule (msg: str) -> None:
+    if args.debug:
+        console.rule(msg)
+    else:
+        console.print(f"-> {msg}")
 
 @dataclass(slots=True)
 class SSHConfig:
@@ -152,7 +160,7 @@ async def ssh_run(
 @beartype
 async def verify_slurm_and_key(cfg: SSHConfig) -> None:
     """Check for Slurm commands & password‑less SSH."""
-    console.rule("[bold]Verifying remote environment[/bold]")
+    rule("[bold]Verifying remote environment[/bold]")
 
     # test key auth
     cp = await ssh_run(cfg, "echo OK")
@@ -187,7 +195,7 @@ async def rsync_scripts(
         console.print(f"[red]❌{local_dir} is not a directory.[/red]")
         sys.exit(1)
 
-    console.rule("[bold]Ensuring remote directory exists[/bold]")
+    rule("[bold]Ensuring remote directory exists[/bold]")
 
     mkdir_cmd = f"mkdir -p {shlex.quote(str(remote_dir))}"
     try:
@@ -196,7 +204,7 @@ async def rsync_scripts(
         console.print(f"[red]❌Failed to create remote directory:[/red] {e.stderr}")
         sys.exit(e.returncode)
 
-    console.rule("[bold]Synchronising script directory[/bold]")
+    rule("[bold]Synchronising script directory[/bold]")
     rsync_cmd = (
         f"rsync -az --delete "
         f"{shlex.quote(str(local_dir))}/ "
@@ -280,7 +288,7 @@ async def ensure_job_running(
     - None if job was already running (no action needed).
     """
     try:
-        console.rule("[bold]Ensuring server job is active[/bold]")
+        rule("[bold]Ensuring server job is active[/bold]")
 
         job_name = args.hpc_job_name
 
@@ -481,7 +489,7 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
     from rich.console import Console
     console = Console()
 
-    console.rule("[bold]Starting Port Forwarding[/bold]")
+    rule("[bold]Starting Port Forwarding[/bold]")
 
     try:
         if not cfg.jumphost_url:
@@ -666,7 +674,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     if args.daemonize:
         sys.stdout = open(os.devnull, 'w')
 
-    console.rule(f"Checking if port is already in use")
+    rule(f"Checking if port is already in use")
 
     # --- Port already in use? ---
     existing_proc_info = find_process_using_port(args.local_port)
