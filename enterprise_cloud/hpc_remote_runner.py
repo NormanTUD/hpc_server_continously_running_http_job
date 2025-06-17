@@ -214,7 +214,7 @@ def to_absolute(path: str | PosixPath)  -> Path:
 
 @beartype
 async def ensure_job_running(
-    cfg: SSHConfig,
+    cfg: "SSHConfig",  # Forward ref if SSHConfig not yet defined
     remote_script_dir: PosixPath,
 ) -> None:
     """
@@ -225,26 +225,57 @@ async def ensure_job_running(
     user_expr = "$(whoami)"
     job_name = "hpc_system_server_runner"
 
-    # check if job exists
     list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {job_name} || true"
     cp = await ssh_run(cfg, list_cmd)
     if cp.stdout.strip() == job_name:
-        console.print("[green]✓ Job already running.[/green]")
+        console.print("[green]✓ Job already running.[/green]")
         return
 
     console.print("[yellow]Job not running – submitting…[/yellow]")
     sbatch_path = f"{remote_script_dir}/slurm.sbatch"
     submit_cmd = f"sbatch {shlex.quote(sbatch_path)}"
     cp = await ssh_run(cfg, submit_cmd, tty=True)
-    console.print(cp.stdout.strip())
 
-    console.print("[cyan]Waiting for job to appear in queue…[/cyan]")
-    while True:
-        cp = await ssh_run(cfg, list_cmd)
-        if cp.stdout.strip() == job_name:
-            console.print("[green]✓ Job now listed in squeue.[/green]")
+    # Parse job ID from output like: Submitted batch job 878778
+    job_id_line = cp.stdout.strip()
+    console.print(job_id_line)
+    try:
+        job_id = int(job_id_line.strip().split()[-1])
+    except Exception as e:
+        console.print(f"[red]❌ Failed to extract job ID: {e}[/red]")
+        return
+
+    console.print("[cyan]Waiting for job to appear in queue or start…[/cyan]")
+
+    timeout_seconds = 300  # 5 minutes max wait
+    poll_interval = 10     # check every 10 seconds
+    elapsed = 0
+
+    while elapsed < timeout_seconds:
+        # Check squeue by job ID
+        check_cmd = f"squeue -j {job_id} -h -o '%i'"
+        cp = await ssh_run(cfg, check_cmd)
+        if str(job_id) in cp.stdout.strip():
+            console.print("[green]✓ Job now listed in squeue.[/green]")
             return
-        await asyncio.sleep(30)
+
+        # If not in squeue, maybe already failed? Check sacct
+        check_sacct = (
+            f"sacct -j {job_id} --format=JobID,State --parsable2 --noheader || true"
+        )
+        cp = await ssh_run(cfg, check_sacct)
+        for line in cp.stdout.strip().splitlines():
+            parts = line.strip().split("|")
+            if len(parts) >= 2 and parts[0].startswith(str(job_id)):
+                state = parts[1]
+                if state in ("FAILED", "CANCELLED", "TIMEOUT", "COMPLETED"):
+                    console.print(f"[red]✗ Job terminated early: {state}[/red]")
+                    return
+
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+    console.print("[red]✗ Timed out waiting for job to start.[/red]")
 
 
 @beartype
