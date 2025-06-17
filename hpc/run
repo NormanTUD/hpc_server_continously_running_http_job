@@ -95,10 +95,10 @@ slurmlogdir () {
 	fi
 }
 
-if [ -n "$SLURM_JOB_ID" ]; then
-	script_dir="$(slurmlogdir $SLURM_JOB_ID)"
-else
+if [[ -n "$SLURM_JOB_ID" ]]; then
 	script_dir="$SLURM_SUBMIT_DIR"
+else
+	script_dir=$(dirname $(realpath "$0"))
 fi
 
 python3 $script_dir/hpc.py "$@"
