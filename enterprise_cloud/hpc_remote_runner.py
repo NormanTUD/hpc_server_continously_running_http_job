@@ -478,26 +478,52 @@ def build_cli() -> argparse.ArgumentParser:
     return parser
 
 
+
 @beartype
 async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
     """
     Execute the entire workflow for *one* remote host.
 
-    Returns (success, forwarder-or-None).
+    Returns:
+        (success: bool, fwd: SSHForwardProcess | None)
     """
     try:
         await verify_slurm_and_key(cfg)
+
         if args.copy:
             await rsync_scripts(cfg, local_script_dir, args.hpc_script_dir)
+
+        # Initial job start
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+
+        # Hole Hostname und Port
         host, port = await read_remote_host_port(cfg)
+
+        # Starte lokalen Forwarding-Prozess
         fwd = start_port_forward(cfg, host, port, args.local_port)
+
+        # Überwache weiterhin, ob der Slurm-Job noch läuft
+        async def monitor_job():
+            try:
+                while True:
+                    await asyncio.sleep(1)
+                    await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+            except Exception as e:
+                console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
+                try:
+                    fwd.stop()  # Beende Portweiterleitung, wenn Job weg
+                except Exception as e2:
+                    console.print(f"[yellow]⚠️ Failed to stop forwarder cleanly: {e2}[/yellow]")
+
+        # Starte Überwachungs-Task im Hintergrund
+        asyncio.create_task(monitor_job())
+
         return True, fwd
+
     except Exception as exc:  # noqa: BLE001
         console.print_exception()
         console.print(f"[red]❌ Host {cfg.target} failed: {exc}[/red]")
         return False, None
-
 
 async def main() -> None:  # noqa: C901 – a bit long but readable
     global args
