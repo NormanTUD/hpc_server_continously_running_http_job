@@ -11,7 +11,7 @@ Automated helper that
     remote host and checks whether the current user can log in password‑less.
 4.  Keeps a local HPC script directory in sync with the remote target via
     `rsync --update --archive --delete`.
-5.  Ensures that a Slurm job named *hpc_system_server_runner* is running for
+5.  Ensures that a Slurm job named *--hpc-job-name* is running for
     the current user; if not, submits `{local_hpc_script_dir}/slurm.sbatch`.
 6.  Once the job is running, reads `~/hpc_server_host_and_file` on the remote
     side, extracts *internal_host:port*, and sets up an SSH port‑forward so
@@ -221,7 +221,7 @@ async def ensure_job_running(
 ) -> None:
     console.rule("[bold]Ensuring server job is active[/bold]")
     user_expr = "$(whoami)"
-    job_name = "hpc_system_server_runner"
+    job_name = args.hpc_job_name
 
     list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {job_name} || true"
     if args.debug:
@@ -445,7 +445,7 @@ def build_cli() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent(
             """\
-            Run or proxy the *hpc_system_server_runner* job on an HPC cluster.
+            Run or proxy the *--hpc-job-name* job on an HPC cluster.
 
             Examples
             --------
@@ -473,6 +473,7 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--local-port", type=int, default=8000, help="Local port to expose the remote service")
     parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
+    parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to hpc_system_server_runner)", default="hpc_system_server_runner")
 
     return parser
 
