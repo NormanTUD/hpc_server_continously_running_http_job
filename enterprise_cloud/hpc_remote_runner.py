@@ -216,29 +216,6 @@ def to_absolute(path: str | PosixPath)  -> Path:
     return Path(path).expanduser().resolve()
 
 @beartype
-async def is_job_in_squeue(cfg: "SSHConfig") -> bool:
-    """
-    Check if the HPC job with the given job name exists in squeue for the current user.
-
-    Returns True if job exists, False otherwise.
-    """
-    try:
-        user_expr = "$(whoami)"
-        list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {shlex.quote(args.hpc_job_name)} || true"
-
-        # For debug purpose, you can enable logging here if needed
-        # console.log(f"Checking if job '{args.hpc_job_name}' is in squeue with command: {list_cmd}")
-
-        cp = await ssh_run(cfg, list_cmd)
-        job_found = cp.stdout.strip() == args.hpc_job_name
-
-        return job_found
-    except Exception as e:
-        console.print(f"[red]❌Error checking squeue for job '{args.hpc_job_name}': {e}[/red]")
-        return False
-
-
-@beartype
 async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
     """
     Prüft, ob der Job mit hpc_job_name in der squeue läuft.
@@ -307,7 +284,7 @@ async def ensure_job_running(
 
         job_name = args.hpc_job_name
 
-        if await is_job_in_squeue(cfg):
+        if await job_status_in_squeue(cfg) is not None:
             console.print(f"[green]✓ {heartbeat_msg}.[/green]")
             return None
 
