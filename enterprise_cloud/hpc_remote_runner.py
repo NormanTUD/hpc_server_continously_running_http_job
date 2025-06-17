@@ -360,14 +360,6 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         if not cfg.jumphost_url:
             raise ValueError("Jumphost URL ist nicht gesetzt!")
 
-        # --- Port already in use? ---
-        existing_proc_info = find_process_using_port(local_port)
-        if existing_proc_info:
-            pid, name = existing_proc_info
-            raise RuntimeError(
-                f"Local port {local_port} already used by PID {pid} ({name})"
-            )
-
         ssh_cmd_parts = [
             "ssh",
             "-L", f"{local_port}:{remote_host}:{remote_port}",
@@ -483,6 +475,16 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
 
     if not args.jumphost_username:
         args.jumphost_username = args.username
+
+    console.print(f":rocket: Checking if port is already in use")
+
+    # --- Port already in use? ---
+    existing_proc_info = find_process_using_port(args.local_port)
+    if existing_proc_info:
+        pid, name = existing_proc_info
+        console.print(f"[red]Local port {args.local_port} already used by PID {pid} ({name})[/red]")
+
+        sys.exit(2)
 
     console.print(f":rocket:  Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
 
