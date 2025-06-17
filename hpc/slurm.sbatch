@@ -6,4 +6,15 @@
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=slurm_runner
 
+slurmlogpath () {
+	if command -v scontrol 2>/dev/null >/dev/null; then
+		scontrol show job "$1" | grep StdOut | sed -e 's/^[[:space:]]*StdOut=//'
+	fi
+}
+
+if [ -n "$SLURM_JOB_ID" ]; then
+	SCRIPT="$(slurmlogpath $SLURM_JOB_ID)/slurm.sbatch"
+	sbatch --dependency=afterany:$SLURM_JOB_ID "$SCRIPT" "$@"
+fi
+
 bash /home/s3811141/hpc_scripts/run $*
