@@ -15,6 +15,8 @@ slurmlogpath () {
 if [ -n "$SLURM_JOB_ID" ]; then
 	SCRIPT="$(slurmlogpath $SLURM_JOB_ID)/slurm.sbatch"
 	sbatch --dependency=afterany:$SLURM_JOB_ID "$SCRIPT" "$@"
+	bash $(slurmlogpath $SLURM_JOB_ID)/run $*
+else
+	bash run $*
 fi
 
-bash /home/s3811141/hpc_scripts/run $*

@@ -78,4 +78,17 @@ fi
 
 # 7. Run the server script
 echo "Starting web server …"
-python3 /home/s3811141/hpc_scripts/hpc.py "$@"
+
+slurmlogpath () {
+	if command -v scontrol 2>/dev/null >/dev/null; then
+		scontrol show job "$1" | grep StdOut | sed -e 's/^[[:space:]]*StdOut=//'
+	fi
+}
+
+if [ -n "$SLURM_JOB_ID" ]; then
+	script_dir="$(slurmlogpath $SLURM_JOB_ID)"
+else
+	script_dir=$(dirname $(realpath "$0"))
+fi
+
+python3 $script_dir/hpc.py "$@"
