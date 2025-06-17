@@ -372,23 +372,26 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
             fwd.stop()
             return
 
-    target_url = f"{args.username}@{args.fallback_system_url}"
+    if args.fallback_system_url:
+        target_url = f"{args.username}@{args.fallback_system_url}"
 
-    console.print("[yellow]Trying fallback host…[/yellow]")
-    fallback_cfg = SSHConfig(
-        target          = target_url,
-        jumphost_url    = jumphost_url,
-        retries         = args.retries,
-        debug           = args.debug,
-        username        = args.username,
-        jumphost_username = args.jumphost_username
-    )
-    ok, fwd = await run_with_host(fallback_cfg, args.hpc_script_dir)
-    if not ok:
-        console.print("[bold red]Both hosts failed.  Giving up.[/bold red]")
-        sys.exit(1)
+        console.print("[yellow]Trying fallback host…[/yellow]")
+        fallback_cfg = SSHConfig(
+            target          = target_url,
+            jumphost_url    = jumphost_url,
+            retries         = args.retries,
+            debug           = args.debug,
+            username        = args.username,
+            jumphost_username = args.jumphost_username
+        )
+        ok, fwd = await run_with_host(fallback_cfg, args.hpc_script_dir)
+        if not ok:
+            console.print("[bold red]Both hosts failed.  Giving up.[/bold red]")
+            sys.exit(1)
 
-    console.print("[bold green]✓  Tunnel to fallback host established.  Press Ctrl+C to stop.[/bold green]")
+        console.print("[bold green]✓  Tunnel to fallback host established.  Press Ctrl+C to stop.[/bold green]")
+    else:
+        console.print("[bold red]❌No fallback host defined. Use --fallback-system-url to define a fallback-host[/bold red]")
     try:
         while True:
             await asyncio.sleep(10)
