@@ -257,7 +257,7 @@ async def ensure_job_running(
 
         job_state = cp.stdout.strip()
 
-        if job_state in ("PENDING", "CONFIGURING", "RUNNING"):
+        if job_state in ("RUNNING"):
             console.print(f"[green]✓ Job is active: {job_state}[/green]")
             return
 
@@ -271,7 +271,7 @@ async def ensure_job_running(
             parts = line.strip().split("|")
             if len(parts) >= 2 and parts[0].startswith(str(job_id)):
                 state = parts[1]
-                if state in ("RUNNING", "PENDING", "CONFIGURING"):
+                if state in ("RUNNING"):
                     console.print(f"[green]✓ Job is active in sacct: {state}[/green]")
                     return
                 elif state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"):
