@@ -139,7 +139,7 @@ async def ssh_run(
                 msg = f"SSH command failed (attempt {attempt.retry_state.attempt_number}): \n"
                 msg += f"{remote_cmd}\n"
                 msg += f"\n{cp.stderr.strip()}\n"
-                console.print(f"[red]❌ {msg}[/red]")
+                console.print(f"[red]❌{msg}[/red]")
                 raise subprocess.CalledProcessError(cp.returncode, cp.args, cp.stdout, cp.stderr)
             return cp
     raise RuntimeError("Unreachable")
@@ -157,7 +157,7 @@ async def verify_slurm_and_key(cfg: SSHConfig) -> None:
     # test key auth
     cp = await ssh_run(cfg, "echo OK")
     if cp.stdout.strip() != "OK":
-        console.print("[red]❌ Password‑less SSH seems not configured.  Aborting.[/red]")
+        console.print("[red]❌Password‑less SSH seems not configured.  Aborting.[/red]")
         sys.exit(1)
     console.print("[green]✓ Password‑less SSH works.[/green]")
 
@@ -171,7 +171,7 @@ async def verify_slurm_and_key(cfg: SSHConfig) -> None:
             missing.append(tool)
 
     if missing:
-        console.print(f"[red]❌ Missing Slurm tools on {cfg.target}: {', '.join(missing)}[/red]")
+        console.print(f"[red]❌Missing Slurm tools on {cfg.target}: {', '.join(missing)}[/red]")
         sys.exit(1)
     console.print("[green]✓ Slurm utilities present.[/green]")
 
@@ -184,7 +184,7 @@ async def rsync_scripts(
 ) -> None:
     """Rsync local script directory to remote."""
     if not local_dir.is_dir():
-        console.print(f"[red]❌ {local_dir} is not a directory.[/red]")
+        console.print(f"[red]❌{local_dir} is not a directory.[/red]")
         sys.exit(1)
 
     console.rule("[bold]Ensuring remote directory exists[/bold]")
@@ -193,7 +193,7 @@ async def rsync_scripts(
     try:
         await ssh_run(cfg, mkdir_cmd)
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]❌ Failed to create remote directory:[/red] {e.stderr}")
+        console.print(f"[red]❌Failed to create remote directory:[/red] {e.stderr}")
         sys.exit(e.returncode)
 
     console.rule("[bold]Synchronising script directory[/bold]")
@@ -205,7 +205,7 @@ async def rsync_scripts(
     # (jumphost w/ rsync: use ProxyJump via SSH config file or rely on our ssh options)
     cp = run_local(rsync_cmd, debug=cfg.debug)
     if cp.returncode:
-        console.print(f"[red]❌ rsync failed:[/red] {cp.stderr}")
+        console.print(f"[red]❌rsync failed:[/red] {cp.stderr}")
         sys.exit(cp.returncode)
 
     console.print(f"[green]✓ {local_dir} → {cfg.target}:{remote_dir} updated.[/green]")
@@ -234,7 +234,7 @@ async def is_job_in_squeue(cfg: "SSHConfig") -> bool:
 
         return job_found
     except Exception as e:
-        console.print(f"[red]❌ Error checking squeue for job '{args.hpc_job_name}': {e}[/red]")
+        console.print(f"[red]❌Error checking squeue for job '{args.hpc_job_name}': {e}[/red]")
         return False
 
 @beartype
@@ -270,13 +270,14 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
                 elif state == "PENDING":
                     return False
                 else:
-                    # Andere Status ignorieren wir hier, man könnte anpassen wenn gewünscht
+                    if args.debug:
+                        console.log(f"Other status found: {state}")
                     return None
 
         return None
 
     except Exception as e:
-        console.print(f"[red]❌ Error in job_status_in_squeue for '{args.hpc_job_name}': {e}[/red]")
+        console.print(f"[red]❌Error in job_status_in_squeue for '{args.hpc_job_name}': {e}[/red]")
         return None
 
 @beartype
@@ -314,7 +315,7 @@ async def ensure_job_running(
         try:
             job_id = int(job_id_line.strip().split()[-1])
         except Exception as e:
-            console.print(f"[red]❌ Failed to extract job ID: {e}[/red]")
+            console.print(f"[red]❌Failed to extract job ID: {e}[/red]")
             return False
 
         console.print("[cyan]Waiting for job to appear in queue or start…[/cyan]")
@@ -345,17 +346,17 @@ async def ensure_job_running(
                         console.print(f"[green]✓ Job is active in sacct: {state}[/green]")
                         return True
                     elif state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"):
-                        console.print(f"[red]❌ Job terminated early: {state}[/red]")
+                        console.print(f"[red]❌Job terminated early: {state}[/red]")
                         return False
 
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
 
-        console.print("[red]❌ Timed out waiting for job to start or appear in system.[/red]")
+        console.print("[red]❌Timed out waiting for job to start or appear in system.[/red]")
         return False
 
     except Exception as e:
-        console.print(f"[red]❌ Unexpected error in ensure_job_running: {e}[/red]")
+        console.print(f"[red]❌Unexpected error in ensure_job_running: {e}[/red]")
         return False
 
 
@@ -389,7 +390,7 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
     ret = await wait_for_job_running_or_absent(cfg)
 
     if ret is None:
-        console.print(f"ERROR: The job seems to have been deleted.")
+        console.print(f"[red]❌The job seems to have been deleted.[/red]")
         return None
 
     remote_path = args.server_and_port_file
@@ -419,7 +420,7 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
             )
             await asyncio.sleep(delay_seconds)
 
-    console.print(f"[red]❌ Remote host file not found after {max_attempts} attempts[/red]")
+    console.print(f"[red]❌Remote host file not found after {max_attempts} attempts[/red]")
     raise RuntimeError(
         f"Failed to read valid host:port from {remote_path} on {cfg.target} "
         f"after {max_attempts} tries"
@@ -475,7 +476,7 @@ class SSHForwardProcess:
                 os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
             except Exception as e:
                 console = Console()
-                console.log(f"[red]❌ Error while exiting Port-Forwardings: {e}[/red]")
+                console.log(f"[red]❌Error while exiting Port-Forwardings: {e}[/red]")
         else:
             console = Console()
             console.log("[yellow]SSH-Forwarding-process ended already.[/yellow]")
@@ -531,7 +532,7 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         return SSHForwardProcess(process, local_port, remote_host, remote_port)
 
     except Exception as e:
-        console.log(f"[red]❌ Error while trying to port-forward: {e}[/red]")
+        console.log(f"[red]❌Error while trying to port-forward: {e}[/red]")
         raise
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -589,11 +590,11 @@ def kill_process(pid: int) -> None:
         if args.debug:
             console.log(f"Process {pid} was terminated with SIGKILL.")
     except ProcessLookupError:
-        console.print(f"[red]❌ ENo process with PID {pid} was found.[/red]")
+        console.print(f"[red]❌ENo process with PID {pid} was found.[/red]")
     except PermissionError:
-        console.print(f"[red]❌ EInsufficient permissions to terminate process {pid}.[/red]")
+        console.print(f"[red]❌EInsufficient permissions to terminate process {pid}.[/red]")
     except Exception as e:
-        console.print(f"[red]❌ EUnexpected error while terminating process {pid}: {e}[/red]")
+        console.print(f"[red]❌EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
 async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
@@ -637,9 +638,9 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
 
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                             else:
-                                console.print(f"[red]❌ Remote job on was not in squeue anymore (B)[/red]")
+                                console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
                 except Exception as e:
-                    console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
+                    console.print(f"[red]❌Remote job on {cfg.target} appears to have stopped: {e}[/red]")
                     try:
                         fwd.stop()  # Beende Portweiterleitung, wenn Job weg
                     except Exception as e2:
@@ -650,13 +651,13 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
 
             return True, fwd
         else:
-            console.print(f"[red]❌ Remote job on was not in squeue anymore (A)[/red]")
+            console.print(f"[red]❌Remote job on was not in squeue anymore (A)[/red]")
 
             return False, None
 
     except Exception as exc:  # noqa: BLE001
         console.print_exception()
-        console.print(f"[red]❌ Host {cfg.target} failed: {exc}[/red]")
+        console.print(f"[red]❌Host {cfg.target} failed: {exc}[/red]")
         return False, None
 
 async def main() -> None:  # noqa: C901 – a bit long but readable
@@ -676,7 +677,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     existing_proc_info = find_process_using_port(args.local_port)
     if existing_proc_info:
         pid, name = existing_proc_info
-        console.print(f"[red]❌ Local port {args.local_port} already used by PID {pid} ({name})[/red]")
+        console.print(f"[red]❌Local port {args.local_port} already used by PID {pid} ({name})[/red]")
 
         sys.exit(2)
 
@@ -719,7 +720,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
         )
         ok, fwd = await run_with_host(fallback_cfg, args.local_hpc_script_dir)
         if not ok:
-            console.print("[bold red]❌ Both hosts failed.  Giving up.[/bold red]")
+            console.print("[bold red]❌Both hosts failed.  Giving up.[/bold red]")
             sys.exit(1)
 
         console.print("[bold green]✓  Tunnel to fallback host established.  Press Ctrl+C to stop.[/bold green]")
@@ -741,4 +742,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        console.print("\n[red]❌ You pressed CTRL-c or sent a signal. Program will end.[/red]")
+        console.print("\n[red]❌You pressed CTRL-c or sent a signal. Program will end.[/red]")
