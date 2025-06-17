@@ -237,28 +237,32 @@ async def is_job_in_squeue(cfg: "SSHConfig") -> bool:
         console.print(f"[red]❌Error checking squeue for job '{args.hpc_job_name}': {e}[/red]")
         return False
 
+
 @beartype
 async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
     """
     Prüft, ob der Job mit hpc_job_name in der squeue läuft.
 
     Rückgabe:
-    - True  wenn Jobstatus RUNNING
-    - False wenn Jobstatus PENDING (also noch nicht gestartet)
-    - None  wenn Job nicht in der squeue vorhanden ist
+    - True  wenn mindestens ein Jobstatus RUNNING ist
+    - False wenn kein Job RUNNING ist, aber mindestens einer PENDING ist
+    - None  wenn kein Job RUNNING oder PENDING ist oder Job nicht in der squeue vorhanden ist
     """
     try:
         user_expr = "$(whoami)"
-        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -F {shlex.quote(args.hpc_job_name)} || true"
+        # Args werden hier angenommen global oder als Teil von cfg; am besten übergeben!
+        job_name = shlex.quote(cfg.hpc_job_name) if hasattr(cfg, "hpc_job_name") else shlex.quote(args.hpc_job_name)
+
+        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -F {job_name} || true"
         cp = await ssh_run(cfg, list_cmd)
         lines = cp.stdout.strip().splitlines()
 
         if len(lines) == 0:
-            print(lines)
-            if args.debug:
-                console.log("job_status_in_squeue: job not in squeue")
+            if hasattr(cfg, "debug") and cfg.debug:
+                print("job_status_in_squeue: job not in squeue")
             return None
 
+        found_pending = False
         for line in lines:
             if not line:
                 continue
@@ -266,20 +270,22 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
             if len(parts) != 2:
                 continue
             name, state = parts
-            if name == args.hpc_job_name:
+            if name == (cfg.hpc_job_name if hasattr(cfg, "hpc_job_name") else args.hpc_job_name):
                 if state == "RUNNING":
                     return True
                 elif state == "PENDING":
-                    return False
+                    found_pending = True
                 else:
-                    if args.debug:
-                        console.log(f"Other status found: {state}")
-                    return None
+                    if hasattr(cfg, "debug") and cfg.debug:
+                        print(f"job_status_in_squeue: Other status found: {state}")
+
+        if found_pending:
+            return False
 
         return None
 
     except Exception as e:
-        console.print(f"[red]❌Error in job_status_in_squeue for '{args.hpc_job_name}': {e}[/red]")
+        print(f"❌Error in job_status_in_squeue for '{cfg.hpc_job_name if hasattr(cfg, 'hpc_job_name') else args.hpc_job_name}': {e}")
         return None
 
 @beartype
