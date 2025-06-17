@@ -36,6 +36,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Optional
 import getpass
+import sys
+from pprint import pprint
 
 from beartype import beartype
 from rich.console import Console
@@ -59,6 +61,9 @@ except ImportError as err:  # pragma: no cover
 
 console: Final = Console(highlight=False)
 
+def dier (msg):
+    pprint(msg)
+    sys.exit(10)
 
 @dataclass(slots=True)
 class SSHConfig:
@@ -67,7 +72,6 @@ class SSHConfig:
     retries: int = 3
     debug: bool = False
     username: str | None = None
-    jumphost: str | None = None
     jumphost_username: str | None = None
 
 @beartype
@@ -103,8 +107,8 @@ def build_ssh_cmd(
         "-o", "ControlPersist=60",
         "-o", "ControlPath=~/.ssh/ctl-%r@%h:%p",
     ]
-    if cfg.jumphost:
-        options.extend(["-J", cfg.jumphost])
+    if cfg.jumphost_url:
+        options.extend(["-J", cfg.jumphost_url])
 
     if allocate_tty:
         options.append("-tt")  # force TTY allocation (Slurm sbatch often needs it)
