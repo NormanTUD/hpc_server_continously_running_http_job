@@ -224,6 +224,9 @@ async def ensure_job_running(
     job_name = "hpc_system_server_runner"
 
     list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {job_name} || true"
+    if args.debug:
+        console.log("Command for checking if the squeue job is already running:")
+        console.log(list_cmd)
     cp = await ssh_run(cfg, list_cmd)
 
     if cp.stdout.strip() == job_name:
