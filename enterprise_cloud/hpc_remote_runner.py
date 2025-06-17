@@ -409,7 +409,7 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
 
         ssh_cmd_str = " ".join(shlex.quote(part) for part in ssh_cmd_parts)
         if args.debug:
-            console.print(f"SSH-Forward-Command: {ssh_cmd_str}")
+            console.log(f"SSH-Forward-Command: {ssh_cmd_str}")
 
         process = Popen(
             ssh_cmd_parts,
