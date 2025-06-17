@@ -1,6 +1,6 @@
 # Persistent Web Services on SLURM: Self-Monitoring Deployment with SSH Forwarding
 
-This contains 2 scripts. One starts a very simple webserver on an HPC-system over SSH inside a sbatch job.
+This contains 2 scripts. One starts a very simple webserver on an HPC-system over SSH inside a sbatch job. This is a toy problem, and resides in the folder hpc. It is to be replaced with your own program.
 
 The other one allows to keep that server in Slurm running by making sure a job is always there, and it's always responding, and restarts it when it's not, and forwards everything to localhost, so it can be used for an API.
 
