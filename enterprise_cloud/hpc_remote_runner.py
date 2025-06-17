@@ -176,8 +176,8 @@ async def verify_slurm_and_key(cfg: SSHConfig) -> None:
 @beartype
 async def rsync_scripts(
     cfg: SSHConfig,
-    local_dir: Path,
-    remote_dir: str,
+    local_dir: PosixPath,
+    remote_dir: str | PosixPath,
 ) -> None:
     """Rsync local script directory to remote."""
     if not local_dir.is_dir():
@@ -188,7 +188,7 @@ async def rsync_scripts(
     rsync_cmd = (
         f"rsync -az --delete "
         f"{shlex.quote(str(local_dir))}/ "
-        f"{cfg.target}:{shlex.quote(remote_dir)}/"
+        f"{cfg.target}:{shlex.quote(str(remote_dir))}/"
     )
     # (jumphost w/ rsync: use ProxyJump via SSH config file or rely on our ssh options)
     cp = run_local(rsync_cmd, debug=cfg.debug)
