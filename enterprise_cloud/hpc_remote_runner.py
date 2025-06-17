@@ -288,12 +288,14 @@ async def ensure_job_running(
     - None if job was already running (no action needed).
     """
     try:
-        rule("[bold]Ensuring server job is active[/bold]")
+        if args.debug:
+            rule("[bold]Ensuring server job is active[/bold]")
 
         job_name = args.hpc_job_name
 
         if await job_status_in_squeue(cfg) is not None:
-            console.print(f"[green]✓ {heartbeat_msg}.[/green]")
+            if args.debug:
+                console.print(f"[green]✓ {heartbeat_msg}.[/green]")
             return None
 
         console.print("[yellow]Job not running – submitting…[/yellow]")
