@@ -364,12 +364,7 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
             ssh_cmd_parts += ["-i", cfg.identity_file]
             console.log(f"Verwende IdentityFile: {cfg.identity_file}")
 
-        if hasattr(cfg, "username") and cfg.username:
-            target = f"{cfg.username}@{cfg.target}"
-        else:
-            target = cfg.target
-
-        ssh_cmd_parts.append(target)
+        ssh_cmd_parts.append(cfg.target)
 
         ssh_cmd_str = " ".join(shlex.quote(part) for part in ssh_cmd_parts)
         console.log(f"SSH-Forward-Befehl: {ssh_cmd_str}")
