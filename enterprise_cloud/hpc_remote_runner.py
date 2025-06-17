@@ -298,7 +298,7 @@ def build_cli() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--hpc-system-url", required=True, help="SSH target for primary HPC head-node (user@host)")
-    parser.add_argument("--fallback-system-url", required=True, help="SSH target for fallback HPC head-node")
+    parser.add_argument("--fallback-system-url", help="SSH target for fallback HPC head-node")
     parser.add_argument("--jumphost-url", help="Optional SSH jumphost in user@host form")
     parser.add_argument("--hpc-script-dir", required=True, type=Path, help="Local directory containing Slurm scripts")
     parser.add_argument("--copy", action="store_true", help="If set, rsync the script directory before anything else")
