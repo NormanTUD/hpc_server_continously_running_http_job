@@ -454,7 +454,8 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     else:
         console.print("[red]❌No fallback host defined. Use --fallback-system-url to define a fallback-host[/red]")
 
-        fwd.stop()
+        if fwd is not None:
+            fwd.stop()
         sys.exit(1)
     try:
         while True:
