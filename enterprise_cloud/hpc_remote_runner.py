@@ -453,6 +453,8 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
         console.print("[bold green]✓  Tunnel to fallback host established.  Press Ctrl+C to stop.[/bold green]")
     else:
         console.print("[red]❌No fallback host defined. Use --fallback-system-url to define a fallback-host[/red]")
+
+        sys.exit(1)
     try:
         while True:
             await asyncio.sleep(10)
