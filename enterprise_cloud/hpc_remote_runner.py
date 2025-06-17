@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Final, Optional
 import getpass
 import sys
+from pathlib import PosixPath
 from pprint import pprint
 
 from beartype import beartype
@@ -202,7 +203,7 @@ async def rsync_scripts(
 @beartype
 async def ensure_job_running(
     cfg: SSHConfig,
-    remote_script_dir: str,
+    remote_script_dir: PosixPath,
 ) -> None:
     """
     Ensure a Slurm job named 'hpc_system_server_runner' is running for $USER.
@@ -329,7 +330,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
         await verify_slurm_and_key(cfg)
         if args.copy:
             await rsync_scripts(cfg, local_script_dir, "$HOME/hpc_scripts")
-        await ensure_job_running(cfg, "$HOME/hpc_scripts")
+        await ensure_job_running(cfg, args.hpc_script_dir)
         host, port = await read_remote_host_port(cfg)
         fwd = start_port_forward(cfg, host, port, args.local_port)
         return True, fwd
