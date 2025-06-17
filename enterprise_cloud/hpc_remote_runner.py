@@ -12,7 +12,7 @@ Automated helper that
 4.  Keeps a local HPC script directory in sync with the remote target via
     `rsync --update --archive --delete`.
 5.  Ensures that a Slurm job named *hpc_system_server_runner* is running for
-    the current user; if not, submits `{hpc_script_dir}/slurm.sbatch`.
+    the current user; if not, submits `{local_hpc_script_dir}/slurm.sbatch`.
 6.  Once the job is running, reads `~/hpc_server_host_and_file` on the remote
     side, extracts *internal_host:port*, and sets up an SSH port‑forward so
     that a **local** HTTP endpoint transparently proxies to the remote server,
@@ -320,7 +320,8 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--hpc-system-url", required=True, help="SSH target for primary HPC head-node (user@host)")
     parser.add_argument("--fallback-system-url", help="SSH target for fallback HPC head-node")
     parser.add_argument("--jumphost-url", help="Optional SSH jumphost in user@host form")
-    parser.add_argument("--hpc-script-dir", required=True, type=Path, help="Local directory containing Slurm scripts")
+    parser.add_argument("--local-hpc-script-dir", required=True, type=Path, help="Local directory containing Slurm scripts")
+    parser.add_argument("--hpc-script-dir", required=True, type=Path, help="Directory on the HPC System where the files should be copied to")
     parser.add_argument("--copy", action="store_true", help="If set, rsync the script directory before anything else")
     parser.add_argument("--debug", action="store_true", help="Verbose local shell output")
     parser.add_argument("--retries", type=int, default=3, help="SSH retry attempts before using fallback")
@@ -341,8 +342,8 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
     try:
         await verify_slurm_and_key(cfg)
         if args.copy:
-            await rsync_scripts(cfg, local_script_dir, "$HOME/hpc_scripts")
-        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+            await rsync_scripts(cfg, local_script_dir, args.hpc_script_dir)
+        await ensure_job_running(cfg, to_absolute(args.local_hpc_script_dir))
         host, port = await read_remote_host_port(cfg)
         fwd = start_port_forward(cfg, host, port, args.local_port)
         return True, fwd
@@ -374,7 +375,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
         username        = args.username,
         jumphost_username = args.jumphost_username
     )
-    ok, fwd = await run_with_host(primary_cfg, args.hpc_script_dir)
+    ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -397,7 +398,7 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
             username        = args.username,
             jumphost_username = args.jumphost_username
         )
-        ok, fwd = await run_with_host(fallback_cfg, args.hpc_script_dir)
+        ok, fwd = await run_with_host(fallback_cfg, args.local_hpc_script_dir)
         if not ok:
             console.print("[bold red]Both hosts failed.  Giving up.[/bold red]")
             sys.exit(1)
