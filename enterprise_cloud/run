@@ -77,4 +77,4 @@ fi
 
 # 7. Run the server script
 echo "Starting web server …"
-python3 hpc.py "$@"
+python3 hpc_remote_runner.py "$@"

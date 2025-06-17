@@ -1,0 +1,5 @@
+beartype>=0.17
+rich>=13.0
+paramiko>=3.4
+sshtunnel>=0.4
+tenacity>=8.2
