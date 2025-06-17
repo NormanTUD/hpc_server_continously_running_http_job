@@ -482,7 +482,7 @@ def build_cli() -> argparse.ArgumentParser:
     return parser
 
 @beartype
-def kill_process(pid: int, args, console) -> None:
+def kill_process(pid: int) -> None:
     try:
         os.kill(pid, signal.SIGKILL)
         if args.debug:
