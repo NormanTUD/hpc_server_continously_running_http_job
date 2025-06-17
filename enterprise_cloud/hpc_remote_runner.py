@@ -129,9 +129,9 @@ async def ssh_run(
         with attempt:
             cp = run_local(build_ssh_cmd(cfg, remote_cmd, tty), debug=cfg.debug)
             if cp.returncode != 0:
-                msg = Text(f"SSH command failed (attempt {attempt.retry_state.attempt_number}): ")
-                msg.append(remote_cmd)
-                msg.append_text(f"\n{cp.stderr.strip()}")
+                msg = f"SSH command failed (attempt {attempt.retry_state.attempt_number}): \n"
+                msg += f"{remote_cmd}\n"
+                msg += f"\n{cp.stderr.strip()}\n"
                 console.print(msg)
                 raise subprocess.CalledProcessError(cp.returncode, cp.args, cp.stdout, cp.stderr)
             return cp
