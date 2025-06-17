@@ -184,6 +184,15 @@ async def rsync_scripts(
         console.print(f"[red]{local_dir} is not a directory.[/red]")
         sys.exit(1)
 
+    console.rule("[bold]Ensuring remote directory exists[/bold]")
+
+    mkdir_cmd = f"mkdir -p {shlex.quote(str(remote_dir))}"
+    try:
+        await ssh_run(cfg, mkdir_cmd)
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Failed to create remote directory:[/red] {e.stderr}")
+        sys.exit(e.returncode)
+
     console.rule("[bold]Synchronising script directory[/bold]")
     rsync_cmd = (
         f"rsync -az --delete "
