@@ -479,6 +479,7 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
     parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to slurm_runner)", default="slurm_runner")
+    parser.add_argument('--daemonize', action='store_true')
 
     return parser
 
@@ -556,6 +557,9 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
 
     if not args.jumphost_username:
         args.jumphost_username = args.username
+
+    if args.daemonize:
+        sys.stdout = open(os.devnull, 'w')
 
     console.rule(f"Checking if port is already in use")
 
