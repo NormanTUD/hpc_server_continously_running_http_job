@@ -41,6 +41,7 @@ import getpass
 import sys
 from pprint import pprint
 import psutil
+from typing import Union
 
 from beartype import beartype
 from rich.console import Console
@@ -215,88 +216,182 @@ def to_absolute(path: str | PosixPath)  -> Path:
     return Path(path).expanduser().resolve()
 
 @beartype
+async def is_job_in_squeue(cfg: "SSHConfig") -> bool:
+    """
+    Check if the HPC job with the given job name exists in squeue for the current user.
+
+    Returns True if job exists, False otherwise.
+    """
+    try:
+        user_expr = "$(whoami)"
+        list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {shlex.quote(args.hpc_job_name)} || true"
+
+        # For debug purpose, you can enable logging here if needed
+        # console.log(f"Checking if job '{args.hpc_job_name}' is in squeue with command: {list_cmd}")
+
+        cp = await ssh_run(cfg, list_cmd)
+        job_found = cp.stdout.strip() == args.hpc_job_name
+
+        return job_found
+    except Exception as e:
+        console.print(f"[red]❌ Error checking squeue for job '{args.hpc_job_name}': {e}[/red]")
+        return False
+
+@beartype
+async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
+    """
+    Prüft, ob der Job mit hpc_job_name in der squeue läuft.
+
+    Rückgabe:
+    - True  wenn Jobstatus RUNNING
+    - False wenn Jobstatus PENDING (also noch nicht gestartet)
+    - None  wenn Job nicht in der squeue vorhanden ist
+    """
+    try:
+        user_expr = "$(whoami)"
+        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -Fx {shlex.quote(args.hpc_job_name)} || true"
+        cp = await ssh_run(cfg, list_cmd)
+        lines = cp.stdout.strip().splitlines()
+
+        if not lines:
+            # Job nicht in der squeue
+            return None
+
+        for line in lines:
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) != 2:
+                continue
+            name, state = parts
+            if name == args.hpc_job_name:
+                if state == "RUNNING":
+                    return True
+                elif state == "PENDING":
+                    return False
+                else:
+                    # Andere Status ignorieren wir hier, man könnte anpassen wenn gewünscht
+                    return None
+
+        return None
+
+    except Exception as e:
+        console.print(f"[red]❌ Error in job_status_in_squeue for '{args.hpc_job_name}': {e}[/red]")
+        return None
+
+@beartype
 async def ensure_job_running(
     cfg: "SSHConfig",
     remote_script_dir: PosixPath,
     heartbeat_msg: str = "Job already running"
-) -> bool | None:
-    # Returns True if job was startet and False if it couldn't be started. Returns None if no starting was required
-    console.rule("[bold]Ensuring server job is active[/bold]")
-    user_expr = "$(whoami)"
-    job_name = args.hpc_job_name
+) -> Union[bool, None]:
+    """
+    Ensures that the HPC job is running on the server.
 
-    list_cmd = f"squeue -u {user_expr} -h -o '%j' | grep -Fx {job_name} || true"
-    if args.debug:
-        console.log("Command for checking if the squeue job is already running:")
-        console.log(list_cmd)
-    cp = await ssh_run(cfg, list_cmd)
-
-    if cp.stdout.strip() == job_name:
-        console.print(f"[green]✓ {heartbeat_msg}.[/green]")
-        return None
-
-    console.print("[yellow]Job not running – submitting…[/yellow]")
-    sbatch_path = f"{remote_script_dir}/slurm.sbatch"
-    submit_cmd = f"sbatch {shlex.quote(sbatch_path)}"
-    cp = await ssh_run(cfg, submit_cmd, tty=True)
-
-    job_id_line = cp.stdout.strip()
-    console.print(job_id_line)
+    Returns:
+    - True if job was started successfully,
+    - False if job failed to start,
+    - None if job was already running (no action needed).
+    """
     try:
-        job_id = int(job_id_line.strip().split()[-1])
-    except Exception as e:
-        console.print(f"[red]❌ Failed to extract job ID: {e}[/red]")
+        console.rule("[bold]Ensuring server job is active[/bold]")
+
+        job_name = args.hpc_job_name
+
+        if await is_job_in_squeue(cfg):
+            console.print(f"[green]✓ {heartbeat_msg}.[/green]")
+            return None
+
+        console.print("[yellow]Job not running – submitting…[/yellow]")
+
+        sbatch_path = f"{remote_script_dir}/slurm.sbatch"
+        submit_cmd = f"sbatch {shlex.quote(sbatch_path)}"
+        cp = await ssh_run(cfg, submit_cmd, tty=True)
+
+        job_id_line = cp.stdout.strip()
+        console.print(job_id_line)
+
+        try:
+            job_id = int(job_id_line.strip().split()[-1])
+        except Exception as e:
+            console.print(f"[red]❌ Failed to extract job ID: {e}[/red]")
+            return False
+
+        console.print("[cyan]Waiting for job to appear in queue or start…[/cyan]")
+
+        timeout_seconds = 300
+        poll_interval = 10
+        elapsed = 0
+
+        while elapsed < timeout_seconds:
+            check_cmd = f"squeue -j {job_id} -h -o '%T'"
+            cp = await ssh_run(cfg, check_cmd)
+            job_state = cp.stdout.strip()
+
+            if job_state == "RUNNING":
+                console.print(f"[green]✓ Job is active: {job_state}[/green]")
+                return True
+
+            check_sacct = (
+                f"sacct -j {job_id} --format=JobID,State --parsable2 --noheader || true"
+            )
+            cp = await ssh_run(cfg, check_sacct)
+
+            for line in cp.stdout.strip().splitlines():
+                parts = line.strip().split("|")
+                if len(parts) >= 2 and parts[0].startswith(str(job_id)):
+                    state = parts[1]
+                    if state == "RUNNING":
+                        console.print(f"[green]✓ Job is active in sacct: {state}[/green]")
+                        return True
+                    elif state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"):
+                        console.print(f"[red]❌ Job terminated early: {state}[/red]")
+                        return False
+
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        console.print("[red]❌ Timed out waiting for job to start or appear in system.[/red]")
         return False
 
-    console.print("[cyan]Waiting for job to appear in queue or start…[/cyan]")
-
-    timeout_seconds = 300
-    poll_interval = 10
-    elapsed = 0
-    seen_in_squeue_once = False
-
-    while elapsed < timeout_seconds:
-        # First try: check if job is in squeue
-        check_cmd = f"squeue -j {job_id} -h -o '%T'"
-        cp = await ssh_run(cfg, check_cmd)
-
-        job_state = cp.stdout.strip()
-
-        if job_state in ("RUNNING"):
-            console.print(f"[green]✓ Job is active: {job_state}[/green]")
-            return True
-
-        # Otherwise: check sacct for job status
-        check_sacct = (
-            f"sacct -j {job_id} --format=JobID,State --parsable2 --noheader || true"
-        )
-        cp = await ssh_run(cfg, check_sacct)
-
-        for line in cp.stdout.strip().splitlines():
-            parts = line.strip().split("|")
-            if len(parts) >= 2 and parts[0].startswith(str(job_id)):
-                state = parts[1]
-                if state in ("RUNNING"):
-                    console.print(f"[green]✓ Job is active in sacct: {state}[/green]")
-                    return True
-                elif state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"):
-                    console.print(f"[red]❌ Job terminated early: {state}[/red]")
-                    return False
-
-        await asyncio.sleep(poll_interval)
-        elapsed += poll_interval
-
-    console.print("[red]❌ Timed out waiting for job to start or appear in system.[/red]")
-
-    return False
+    except Exception as e:
+        console.print(f"[red]❌ Unexpected error in ensure_job_running: {e}[/red]")
+        return False
 
 
 @beartype
-async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
+async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
+    """
+    Wartet, bis der Jobstatus True (RUNNING) ist oder None (nicht mehr in squeue).
+
+    Prüft alle 5 Sekunden den Status.
+    Gibt True zurück wenn RUNNING,
+    None wenn Job nicht mehr in squeue ist.
+    """
+    poll_interval = 5
+
+    while True:
+        status = await job_status_in_squeue(cfg)
+        if status is True:
+            return True
+        if status is None:
+            return None
+        await asyncio.sleep(poll_interval)
+
+@beartype
+async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
     """
+
+
+    ret = await wait_for_job_running_or_absent(cfg)
+
+    if ret is None:
+        console.print(f"ERROR: The job seems to have been deleted.")
+        return None
+
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
     delay_seconds = args.delay_between_server_and_port
@@ -516,38 +611,48 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
 
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
 
-        host, port = await read_remote_host_port(cfg)
+        ret = await read_remote_host_port(cfg)
 
-        fwd = start_port_forward(cfg, host, port, args.local_port)
+        if ret is not None:
+            host, port = ret
 
-        async def monitor_job():
-            try:
-                while True:
-                    await asyncio.sleep(args.heartbeat_time)
-                    if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully"):
-                        host, port = await read_remote_host_port(cfg)
+            fwd = start_port_forward(cfg, host, port, args.local_port)
 
-                        existing_proc_info = find_process_using_port(args.local_port)
-                        if existing_proc_info:
-                            pid, name = existing_proc_info
-
-                            if args.debug:
-                                console.log(f"Local-Port is already used by process {pid} ({name}). Will kill it to restart it...")
-
-                            kill_process(pid)
-
-                            fwd = start_port_forward(cfg, host, port, args.local_port)
-            except Exception as e:
-                console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
+            async def monitor_job():
                 try:
-                    fwd.stop()  # Beende Portweiterleitung, wenn Job weg
-                except Exception as e2:
-                    console.print(f"[yellow]⚠️ Failed to stop forwarder cleanly: {e2}[/yellow]")
+                    while True:
+                        await asyncio.sleep(args.heartbeat_time)
+                        if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully"):
+                            ret = await read_remote_host_port(cfg)
+                            if ret is not None:
+                                host, port = ret
+                                existing_proc_info = find_process_using_port(args.local_port)
+                                if existing_proc_info:
+                                    pid, name = existing_proc_info
 
-        # Starte Überwachungs-Task im Hintergrund
-        asyncio.create_task(monitor_job())
+                                    if args.debug:
+                                        console.log(f"Local-Port is already used by process {pid} ({name}). Will kill it to restart it...")
 
-        return True, fwd
+                                    kill_process(pid)
+
+                                    fwd = start_port_forward(cfg, host, port, args.local_port)
+                            else:
+                                console.print(f"[red]❌ Remote job on was not in squeue anymore (B)[/red]")
+                except Exception as e:
+                    console.print(f"[red]❌ Remote job on {cfg.target} appears to have stopped: {e}[/red]")
+                    try:
+                        fwd.stop()  # Beende Portweiterleitung, wenn Job weg
+                    except Exception as e2:
+                        console.print(f"[yellow]⚠️ Failed to stop forwarder cleanly: {e2}[/yellow]")
+
+            # Starte Überwachungs-Task im Hintergrund
+            asyncio.create_task(monitor_job())
+
+            return True, fwd
+        else:
+            console.print(f"[red]❌ Remote job on was not in squeue anymore (A)[/red]")
+
+            return False, None
 
     except Exception as exc:  # noqa: BLE001
         console.print_exception()

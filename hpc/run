@@ -79,16 +79,10 @@ fi
 # 7. Run the server script
 echo "Starting web server …"
 
-slurmlogdir () {
+get_slurm_script () {
 	if command -v scontrol >/dev/null 2>&1; then
 		local logfile
-		logfile=$(scontrol show job "$1" | grep -oP 'StdOut=\K\S+')
-		if [ -n "$logfile" ]; then
-			dirname "$logfile"
-		else
-			echo "Kein StdOut-Pfad gefunden." >&2
-			return 1
-		fi
+		scontrol show job "$1" | awk -F'Command=' '/Command=/{print $2}'
 	else
 		echo "scontrol nicht verfügbar." >&2
 		return 1
@@ -96,7 +90,7 @@ slurmlogdir () {
 }
 
 if [[ -n "$SLURM_JOB_ID" ]]; then
-	script_dir="$SLURM_SUBMIT_DIR"
+	script_dir="$(dirname $(get_slurm_script $SLURM_JOB_ID))"
 else
 	script_dir=$(dirname $(realpath "$0"))
 fi
