@@ -44,6 +44,10 @@ def index():
     else:
         greeting = f"This script runs on {HOSTNAME}."
 
+    slurm_job_id = os.getenv("SLURM_JOB_ID")
+    if slurm_job_id:
+        greeting += f" It is running as SLURM job ID {slurm_job_id}."
+
     nvidia_output = get_nvidia_smi_output()
     if nvidia_output is not None:
         gpu_info = f"<h2>GPU Info (from nvidia-smi)</h2><pre>{nvidia_output}</pre>"
