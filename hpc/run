@@ -96,9 +96,9 @@ slurmlogdir () {
 }
 
 if [ -n "$SLURM_JOB_ID" ]; then
-	script_dir="$(slurmlogpath $SLURM_JOB_ID)"
+	script_dir="$(slurmlogdir $SLURM_JOB_ID)"
 else
-	script_dir=$(dirname $(realpath "$0"))
+	script_dir="$SLURM_SUBMIT_DIR"
 fi
 
 python3 $script_dir/hpc.py "$@"
