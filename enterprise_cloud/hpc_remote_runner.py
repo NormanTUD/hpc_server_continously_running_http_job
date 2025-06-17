@@ -285,8 +285,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     then parse and return it.
     """
     remote_path = "~/hpc_server_host_and_file"
-    max_attempts = 60  # z. B. 60 Sekunden lang probieren
-    delay_seconds = 1.0
+    max_attempts = 60
+    delay_seconds = 5
 
     last_error: Optional[Exception] = None
 
