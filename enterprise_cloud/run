@@ -16,7 +16,7 @@ green_text() { printf "\033[1;32m%s\033[0m\n" "$*";   }   # bright green
 REQ_HASH=$(cat requirements.txt | md5sum | sed -e 's#\s.*##')
 
 # 2. Check / create + activate virtual env
-VENV_DIR="$HOME/.hpc_server_env"
+VENV_DIR="$HOME/.hpc_server_enterprise_cloud_env"
 if [[ ! -d "$VENV_DIR" ]]; then
     echo "Creating venv in $VENV_DIR ..."
     if ! python3 -m venv "$VENV_DIR"; then
