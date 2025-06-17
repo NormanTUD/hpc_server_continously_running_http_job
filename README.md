@@ -1,10 +1,14 @@
-# Allow a service to be deployed on SLURM-Systems
+# Persistent Web Services on SLURM: Self-Monitoring Deployment with SSH Forwarding
 
 This contains 2 scripts. One starts a very simple webserver on an HPC-system over SSH inside a sbatch job.
 
 The other one allows to keep that server in Slurm running by making sure a job is always there, and it's always responding, and restarts it when it's not, and forwards everything to localhost, so it can be used for an API.
 
-This toolset enables you to deploy and persist a web-based service (e.g., an API to a resource-intensive Job) on SLURM-based HPC systems. It automatically monitors the service job, restarts it if necessary, and forwards the connection securely to your local machine (even across jumphosts). Ideal for researchers or engineers needing persistent web APIs on shared computing infrastructure.
+This toolset enables you to deploy and persist a web-based service (e.g., an API to a resource-intensive Job) on SLURM-based HPC systems. It automatically monitors the service job, restarts it if necessary, and forwards the connection securely to your local machine (even across jumphosts). This is ideal for researchers, data scientists, and engineers who want to deploy long-running web services (like APIs, dashboards, or notebooks) on shared compute clusters without needing a permanent node allocation.
+
+### Example Use Case
+
+You’ve trained a large ML model on an HPC system and want to serve it via a REST API for your frontend team. This tool allows you to expose that model reliably via an HTTP server inside a SLURM job, monitor it, and access it from your local machine via SSH tunneling.
 
 ## How it works
 
@@ -29,6 +33,13 @@ For example, with a jumphost:
 cd enterprise_cloud
 bash run --hpc-system-url login1.partition.cluster-name.com --jumphost-url jumphost.com --local-hpc-script-dir ../hpc --username your_username --jumphost-username service --hpc-script-dir "/home/your_username/hpc_scripts" --copy
 ```
+
+The `run` script will:
+1. Optionally `rsync` your Slurm job files to the HPC (`--copy`)
+2. Submit a SLURM job (`slurm.sbatch`) via SSH
+3. Start a local watcher that monitors the job
+4. Create an SSH tunnel to the remote service so it is accessable via localhost
+5. Restart the job if required
 
 ## `--help`
 
