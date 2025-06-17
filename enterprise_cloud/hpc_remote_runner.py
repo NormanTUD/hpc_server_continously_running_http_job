@@ -46,8 +46,7 @@ from rich.text import Text
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 try:
-    import paramiko
-    from sshtunnel import SSHTunnelForwarder, BaseSSHTunnelForwarderError
+    from subprocess import Popen, DEVNULL, PIPE
 except ImportError as err:  # pragma: no cover
     sys.exit(
         "Missing runtime dependencies.  Run `pip install -r requirements.txt` "
@@ -318,38 +317,84 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     ) from last_error
 
 
+class SSHForwardProcess:
+    def __init__(self, process: Popen, local_port: int, remote_host: str, remote_port: int):
+        self.process = process
+        self.local_port = local_port
+        self.remote_host = remote_host
+        self.remote_port = remote_port
+
+    def stop(self):
+        if self.process.poll() is None:
+            try:
+                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+            except Exception as e:
+                console.log(f"[red]Fehler beim Beenden des Port-Forwardings: {e}[/red]")
+        else:
+            console.log("[yellow]SSH-Forwarding-Prozess war bereits beendet.[/yellow]")
+
+
 @beartype
-def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int):
+def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int) -> SSHForwardProcess:
+    from rich.console import Console
+    console = Console()
+
     console.rule("[bold]Starting Port Forwarding[/bold]")
+
     try:
         if not cfg.jumphost_url:
             raise ValueError("Jumphost URL ist nicht gesetzt!")
 
-        # ProxyCommand für den Jumphost
-        ssh_proxy_command = f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"
-        console.log(f"ProxyCommand: {ssh_proxy_command}")
+        ssh_cmd_parts = [
+            "ssh",
+            "-L", f"{local_port}:{remote_host}:{remote_port}",
+            "-N",  # keine Remote-Kommandos
+            "-T",  # kein Pseudo-TTY
+        ]
 
-        ssh_proxy = paramiko.ProxyCommand(ssh_proxy_command)
+        # Falls ein Jumphost gesetzt ist, nutzen wir ihn über ProxyJump oder ProxyCommand
+        if hasattr(cfg, "proxyjump") and cfg.proxyjump:
+            ssh_cmd_parts += ["-J", cfg.proxyjump]
+            console.log(f"Verwende ProxyJump: {cfg.proxyjump}")
+        else:
+            ssh_cmd_parts += ["-o", f"ProxyCommand=ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"]
+            console.log(f"Verwende ProxyCommand: ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}")
 
-        forwarder = SSHTunnelForwarder(
-            ssh_address_or_host=cfg.jumphost_url,
-            ssh_proxy=ssh_proxy,
-            ssh_username=cfg.username,
-            local_bind_address=('localhost', local_port),
-            remote_bind_address=(remote_host, remote_port)
+        if hasattr(cfg, "identity_file") and cfg.identity_file:
+            ssh_cmd_parts += ["-i", cfg.identity_file]
+            console.log(f"Verwende IdentityFile: {cfg.identity_file}")
+
+        if hasattr(cfg, "username") and cfg.username:
+            target = f"{cfg.username}@{cfg.target}"
+        else:
+            target = cfg.target
+
+        ssh_cmd_parts.append(target)
+
+        ssh_cmd_str = " ".join(shlex.quote(part) for part in ssh_cmd_parts)
+        console.log(f"SSH-Forward-Befehl: {ssh_cmd_str}")
+
+        process = Popen(
+            ssh_cmd_parts,
+            stdout=DEVNULL,
+            stderr=PIPE,
+            preexec_fn=os.setsid  # eigene Prozessgruppe für sauberes Beenden
         )
 
-        forwarder.start()
-        console.log(f"[green]Port forwarding läuft: localhost:{local_port} -> {remote_host}:{remote_port}[/green]")
-        return forwarder
+        # Kurzes Warten, um zu prüfen, ob Prozess korrekt startet
+        import time
+        time.sleep(1.0)
+        if process.poll() is not None:
+            err_output = process.stderr.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"SSH-Forwarding failed:\n{err_output}")
 
-    except BaseSSHTunnelForwarderError as e:
-        console.log(f"[red]SSHTunnelForwarderError: {str(e)}[/red]")
-        raise e
+        console.log(f"[green]Port forwarding is running: localhost:{local_port} -> {remote_host}:{remote_port}[/green]")
+        return SSHForwardProcess(process, local_port, remote_host, remote_port)
 
     except Exception as e:
-        console.log(f"[red]Fehler beim Starten des Port Forwardings: {str(e)}[/red]")
-        raise e
+        console.log(f"[red]Error while trying to port-forward: {e}[/red]")
+        raise
+
 # ──────────────────────────────────────────────────────────────────────────────
 # main entry‑point
 # ──────────────────────────────────────────────────────────────────────────────
@@ -393,7 +438,7 @@ def build_cli() -> argparse.ArgumentParser:
 
 
 @beartype
-async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHTunnelForwarder]]:
+async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
     """
     Execute the entire workflow for *one* remote host.
 
