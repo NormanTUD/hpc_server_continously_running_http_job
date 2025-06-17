@@ -399,19 +399,17 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         # Falls ein Jumphost gesetzt ist, nutzen wir ihn über ProxyJump oder ProxyCommand
         if hasattr(cfg, "proxyjump") and cfg.proxyjump:
             ssh_cmd_parts += ["-J", cfg.proxyjump]
-            console.log(f"Using ProxyJump: {cfg.proxyjump}")
         else:
             ssh_cmd_parts += ["-o", f"ProxyCommand=ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"]
-            console.log(f"Using ProxyCommand: ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}")
 
         if hasattr(cfg, "identity_file") and cfg.identity_file:
             ssh_cmd_parts += ["-i", cfg.identity_file]
-            console.log(f"Using IdentityFile: {cfg.identity_file}")
 
         ssh_cmd_parts.append(cfg.target)
 
         ssh_cmd_str = " ".join(shlex.quote(part) for part in ssh_cmd_parts)
-        console.log(f"SSH-Forward-Command: {ssh_cmd_str}")
+        if args.debug:
+            console.print(f"SSH-Forward-Command: {ssh_cmd_str}")
 
         process = Popen(
             ssh_cmd_parts,
