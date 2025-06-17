@@ -318,31 +318,24 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     ) from last_error
 
 
-@beartype
-def start_port_forward(
-    cfg: SSHConfig,
-    remote_host: str,
-    remote_port: int,
-    local_port: int = 8000,
-) -> SSHTunnelForwarder:
-    """
-    Establish an SSH forwarder that maps :local_port → remote_host:remote_port.
-    The forward goes through cfg.target (head‑node) and, optionally, cfg.jumphost_url.
-    """
-    console.rule("[bold]Opening SSH tunnel[/bold]")
-    forwarder = SSHTunnelForwarder(
-        (cfg.target.split("@")[-1], 22),
-        ssh_username=(cfg.target.split("@")[0] if "@" in cfg.target else None),
-        remote_bind_address=(remote_host, remote_port),
-        local_bind_address=("localhost", local_port),
-        ssh_pkey=os.path.expanduser("~/.ssh/id_rsa"),
-        # Paramiko-style jump: we can set `ssh_proxy` here if jumphost_url
-        ssh_proxy=paramiko.ProxyCommand(f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}") if cfg.jumphost_url else None,
-    )
-    forwarder.start()
-    console.print(f"[green]✓ Forwarding localhost:{local_port} → {remote_host}:{remote_port}[/green]")
-    return forwarder
+def start_port_forward(cfg, remote_host, remote_port, local_port):
+    try:
+        ssh_proxy_command = f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"
+        ssh_proxy = paramiko.ProxyCommand(ssh_proxy_command)
 
+        forwarder = SSHTunnelForwarder(
+            (remote_host, remote_port),
+            ssh_proxy=ssh_proxy,
+            local_bind_address=('localhost', local_port),
+            ssh_username=cfg.username
+        )
+
+        forwarder.start()
+        console.log(f"[red]Forwarding localhost:{local_port} -> {remote_host}:{remote_port}[/red]")
+        return forwarder
+    except Exception as e:
+        console.log(f"[red]Failed to start port forwarding[/red]")
+        raise e
 
 # ──────────────────────────────────────────────────────────────────────────────
 # main entry‑point
