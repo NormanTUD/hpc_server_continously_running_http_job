@@ -16,8 +16,6 @@ get_slurm_script () {
 	fi
 }
 
-
-
 if [ -n "$SLURM_JOB_ID" ]; then
 	SLURM_SCRIPT="$(get_slurm_script $SLURM_JOB_ID)"
 	#sbatch --dependency=afterany:$SLURM_JOB_ID "$SLURM_SCRIPT" "$@"
