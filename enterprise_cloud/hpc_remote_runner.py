@@ -25,6 +25,8 @@ see what is happening.
 from __future__ import annotations
 
 import argparse
+import signal
+import atexit
 import asyncio
 import os
 import shlex
@@ -317,23 +319,6 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
         f"after {max_attempts} tries"
     ) from last_error
 
-
-class SSHForwardProcess:
-    def __init__(self, process: Popen, local_port: int, remote_host: str, remote_port: int):
-        self.process = process
-        self.local_port = local_port
-        self.remote_host = remote_host
-        self.remote_port = remote_port
-
-    def stop(self):
-        if self.process.poll() is None:
-            try:
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-            except Exception as e:
-                console.log(f"[red]Fehler beim Beenden des Port-Forwardings: {e}[/red]")
-        else:
-            console.log("[yellow]SSH-Forwarding-Prozess war bereits beendet.[/yellow]")
-
 @beartype
 def find_process_using_port(port: int) -> Optional[tuple[int, str]]:
     try:
@@ -348,6 +333,46 @@ def find_process_using_port(port: int) -> Optional[tuple[int, str]]:
         return None
     except Exception as e:
         return None
+
+class SSHForwardProcess:
+    def __init__(self, process: Popen, local_port: int, remote_host: str, remote_port: int):
+        self.process = process
+        self.local_port = local_port
+        self.remote_host = remote_host
+        self.remote_port = remote_port
+        self._stopped = False
+
+        # Registrieren für automatische Beendigung
+        atexit.register(self.stop)
+
+        # Ctrl+C abfangen, um auch dort zu stoppen
+        signal.signal(signal.SIGINT, self._sigint_handler)
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
+
+    def _sigint_handler(self, signum, frame):
+        self.stop()
+        # Jetzt wirklich Programm abbrechen
+        os._exit(130)
+
+    def _sigterm_handler(self, signum, frame):
+        self.stop()
+        os._exit(143)
+
+    def stop(self):
+        if self._stopped:
+            return
+
+        self._stopped = True
+
+        if self.process.poll() is None:
+            try:
+                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+            except Exception as e:
+                console = Console()
+                console.log(f"[red]Fehler beim Beenden des Port-Forwardings: {e}[/red]")
+        else:
+            console = Console()
+            console.log("[yellow]SSH-Forwarding-Prozess war bereits beendet.[/yellow]")
 
 @beartype
 def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int) -> SSHForwardProcess:
