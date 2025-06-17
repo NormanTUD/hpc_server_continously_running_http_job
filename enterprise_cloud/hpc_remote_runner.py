@@ -250,7 +250,6 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
     try:
         user_expr = "$(whoami)"
         list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -F {shlex.quote(args.hpc_job_name)} || true"
-        print(list_cmd)
         cp = await ssh_run(cfg, list_cmd)
         lines = cp.stdout.strip().splitlines()
 
@@ -401,25 +400,36 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
 
     last_error: Optional[Exception] = None
 
-    for attempt in range(1, max_attempts + 1):
-        try:
-            cp = await ssh_run(cfg, f"cat {remote_path}")
-            host_port = cp.stdout.strip()
+    attempt = 1
 
-            if not host_port:
-                raise RuntimeError("Empty response from remote file")
+    while attempt <= max_attempts:
+        status = await job_status_in_squeue(cfg)
 
-            host, port_s = host_port.split(":", 1)
-            port = int(port_s)
+        if status is None:
+            return None
 
-            console.print(f"[green]Remote server: {host}:{port}[/green]")
-            return host, port
+        if status:
+            try:
+                cp = await ssh_run(cfg, f"cat {remote_path}")
+                host_port = cp.stdout.strip()
 
-        except Exception as exc:
-            last_error = exc
-            console.print(
-                f"[yellow]Waiting for remote host file ({attempt}/{max_attempts})…[/yellow]"
-            )
+                if not host_port:
+                    raise RuntimeError("Empty response from remote file")
+
+                host, port_s = host_port.split(":", 1)
+                port = int(port_s)
+
+                console.print(f"[green]Remote server: {host}:{port}[/green]")
+                return host, port
+
+            except Exception as exc:
+                last_error = exc
+                console.print(f"[yellow]Waiting for remote host file ({attempt}/{max_attempts})…[/yellow]")
+                await asyncio.sleep(delay_seconds)
+                attempt += 1
+        else:
+            if args.debug:
+                console.log(f"Job not yet running")
             await asyncio.sleep(delay_seconds)
 
     console.print(f"[red]❌Remote host file not found after {max_attempts} attempts[/red]")
