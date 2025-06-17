@@ -281,18 +281,41 @@ async def ensure_job_running(
 @beartype
 async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
     """
-    Read ~/hpc_server_host_and_file which contains "host:port".
+    Poll remote ~/hpc_server_host_and_file until it exists and contains "host:port",
+    then parse and return it.
     """
-    path = "~/hpc_server_host_and_file"
-    cp = await ssh_run(cfg, f"cat {path}")
-    host_port = cp.stdout.strip()
-    try:
-        host, port_s = host_port.split(":", 1)
-        port = int(port_s)
-    except ValueError as exc:  # pragma: no cover
-        raise RuntimeError(f"Invalid host:port string in {path!s}: {host_port}") from exc
-    console.print(f"[green]Remote server: {host}:{port}[/green]")
-    return host, port
+    remote_path = "~/hpc_server_host_and_file"
+    max_attempts = 60  # z. B. 60 Sekunden lang probieren
+    delay_seconds = 1.0
+
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            cp = await ssh_run(cfg, f"cat {remote_path}")
+            host_port = cp.stdout.strip()
+
+            if not host_port:
+                raise RuntimeError("Empty response from remote file")
+
+            host, port_s = host_port.split(":", 1)
+            port = int(port_s)
+
+            console.print(f"[green]Remote server: {host}:{port}[/green]")
+            return host, port
+
+        except Exception as exc:
+            last_error = exc
+            console.print(
+                f"[yellow]Waiting for remote host file ({attempt}/{max_attempts})…[/yellow]"
+            )
+            await asyncio.sleep(delay_seconds)
+
+    console.print(f"[red]❌ Remote host file not found after {max_attempts} attempts[/red]")
+    raise RuntimeError(
+        f"Failed to read valid host:port from {remote_path} on {cfg.target} "
+        f"after {max_attempts} tries"
+    ) from last_error
 
 
 @beartype
