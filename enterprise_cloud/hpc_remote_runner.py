@@ -218,6 +218,7 @@ def to_absolute(path: str | PosixPath)  -> Path:
 async def ensure_job_running(
     cfg: "SSHConfig",
     remote_script_dir: PosixPath,
+    heartbeat_msg: str = "Job already running"
 ) -> bool | None:
     # Returns True if job was startet and False if it couldn't be started. Returns None if no starting was required
     console.rule("[bold]Ensuring server job is active[/bold]")
@@ -231,7 +232,7 @@ async def ensure_job_running(
     cp = await ssh_run(cfg, list_cmd)
 
     if cp.stdout.strip() == job_name:
-        console.print("[green]✓ Job already running.[/green]")
+        console.print(f"[green]✓ {heartbeat_msg}.[/green]")
         return None
 
     console.print("[yellow]Job not running – submitting…[/yellow]")
@@ -518,7 +519,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
             try:
                 while True:
                     await asyncio.sleep(args.heartbeat_time)
-                    if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir)):
+                    if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully"):
                         host, port = await read_remote_host_port(cfg)
 
                         existing_proc_info = find_process_using_port(args.local_port)
