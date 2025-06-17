@@ -348,26 +348,26 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         ssh_cmd_parts = [
             "ssh",
             "-L", f"{local_port}:{remote_host}:{remote_port}",
-            "-N",  # keine Remote-Kommandos
-            "-T",  # kein Pseudo-TTY
+            "-N",
+            "-T",
         ]
 
         # Falls ein Jumphost gesetzt ist, nutzen wir ihn über ProxyJump oder ProxyCommand
         if hasattr(cfg, "proxyjump") and cfg.proxyjump:
             ssh_cmd_parts += ["-J", cfg.proxyjump]
-            console.log(f"Verwende ProxyJump: {cfg.proxyjump}")
+            console.log(f"Using ProxyJump: {cfg.proxyjump}")
         else:
             ssh_cmd_parts += ["-o", f"ProxyCommand=ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"]
-            console.log(f"Verwende ProxyCommand: ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}")
+            console.log(f"Using ProxyCommand: ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}")
 
         if hasattr(cfg, "identity_file") and cfg.identity_file:
             ssh_cmd_parts += ["-i", cfg.identity_file]
-            console.log(f"Verwende IdentityFile: {cfg.identity_file}")
+            console.log(f"Using IdentityFile: {cfg.identity_file}")
 
         ssh_cmd_parts.append(cfg.target)
 
         ssh_cmd_str = " ".join(shlex.quote(part) for part in ssh_cmd_parts)
-        console.log(f"SSH-Forward-Befehl: {ssh_cmd_str}")
+        console.log(f"SSH-Forward-Command: {ssh_cmd_str}")
 
         process = Popen(
             ssh_cmd_parts,
