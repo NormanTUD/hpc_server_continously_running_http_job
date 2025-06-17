@@ -386,7 +386,6 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
     then parse and return it.
     """
 
-
     ret = await wait_for_job_running_or_absent(cfg)
 
     if ret is None:
