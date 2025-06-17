@@ -47,7 +47,7 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 
 try:
     import paramiko
-    from sshtunnel import SSHTunnelForwarder
+    from sshtunnel import SSHTunnelForwarder, BaseSSHTunnelForwarderError
 except ImportError as err:  # pragma: no cover
     sys.exit(
         "Missing runtime dependencies.  Run `pip install -r requirements.txt` "
@@ -319,11 +319,16 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
 
 
 @beartype
-def start_port_forward(cfg: SSHConfig, remote_host: str, remote_port: int, local_port: int):
+def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int):
     console.rule("[bold]Starting Port Forwarding[/bold]")
     try:
-        # Proxy command für Jumphost SSH-Tunnel
+        if not cfg.jumphost_url:
+            raise ValueError("Jumphost URL ist nicht gesetzt!")
+
+        # ProxyCommand für den Jumphost
         ssh_proxy_command = f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"
+        console.log(f"ProxyCommand: {ssh_proxy_command}")
+
         ssh_proxy = paramiko.ProxyCommand(ssh_proxy_command)
 
         forwarder = SSHTunnelForwarder(
@@ -331,17 +336,20 @@ def start_port_forward(cfg: SSHConfig, remote_host: str, remote_port: int, local
             ssh_proxy=ssh_proxy,
             ssh_username=cfg.username,
             local_bind_address=('localhost', local_port),
-            remote_bind_address=(remote_host, remote_port)  # WICHTIG: remote bind muss angegeben sein
+            remote_bind_address=(remote_host, remote_port)
         )
 
         forwarder.start()
-        console.log(f"[red]Forwarding localhost:{local_port} -> {remote_host}:{remote_port}[/red]")
+        console.log(f"[green]Port forwarding läuft: localhost:{local_port} -> {remote_host}:{remote_port}[/green]")
         return forwarder
 
-    except Exception as e:
-        console.log(f"[red]Failed to start port forwarding[/red]")
+    except BaseSSHTunnelForwarderError as e:
+        console.log(f"[red]SSHTunnelForwarderError: {str(e)}[/red]")
         raise e
 
+    except Exception as e:
+        console.log(f"[red]Fehler beim Starten des Port Forwardings: {str(e)}[/red]")
+        raise e
 # ──────────────────────────────────────────────────────────────────────────────
 # main entry‑point
 # ──────────────────────────────────────────────────────────────────────────────
