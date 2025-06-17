@@ -65,7 +65,7 @@ end
 
 Local -> Headnode : ssh -L <local_port>:<host>:<remote_port>
 note right of Local
-  Web service is now accessible at:\nhttp://localhost:<local_port>
+  Web service is now accessible at http://localhost:<local_port>
 end note
 
 @enduml
