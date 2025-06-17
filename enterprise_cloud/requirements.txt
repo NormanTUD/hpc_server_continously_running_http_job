@@ -1,3 +1,4 @@
-beartype>=0.17
-rich>=13.0
-tenacity>=8.2
+beartype
+psutil
+rich
+tenacity

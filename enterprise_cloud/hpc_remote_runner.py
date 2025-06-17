@@ -38,6 +38,7 @@ from typing import Final, Optional
 import getpass
 import sys
 from pprint import pprint
+import psutil
 
 from beartype import beartype
 from rich.console import Console
@@ -333,6 +334,20 @@ class SSHForwardProcess:
         else:
             console.log("[yellow]SSH-Forwarding-Prozess war bereits beendet.[/yellow]")
 
+@beartype
+def find_process_using_port(port: int) -> Optional[tuple[int, str]]:
+    try:
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr and conn.laddr.port == port:
+                if conn.pid is not None:
+                    try:
+                        proc = psutil.Process(conn.pid)
+                        return (proc.pid, proc.name())
+                    except psutil.NoSuchProcess:
+                        return (conn.pid, "Unknown")
+        return None
+    except Exception as e:
+        return None
 
 @beartype
 def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int) -> SSHForwardProcess:
@@ -344,6 +359,14 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
     try:
         if not cfg.jumphost_url:
             raise ValueError("Jumphost URL ist nicht gesetzt!")
+
+        # --- Port already in use? ---
+        existing_proc_info = find_process_using_port(local_port)
+        if existing_proc_info:
+            pid, name = existing_proc_info
+            raise RuntimeError(
+                f"Local port {local_port} already used by PID {pid} ({name})"
+            )
 
         ssh_cmd_parts = [
             "ssh",
