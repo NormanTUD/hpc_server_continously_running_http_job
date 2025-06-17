@@ -477,7 +477,7 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument("--heartbeat-time", type=int, default=10, help="Time to re-check if the server is still running properly")
     parser.add_argument("--username", default=getpass.getuser(), help="SSH username for HPC and (by default) also for jumphost")
     parser.add_argument("--jumphost-username", help="SSH username for jumphost (defaults to --username)")
-    parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to hpc_system_server_runner)", default="hpc_system_server_runner")
+    parser.add_argument("--hpc-job-name", help="Name of the HPC job (defaults to slurm_runner)", default="slurm_runner")
 
     return parser
 
