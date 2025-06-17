@@ -491,7 +491,8 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
     from rich.console import Console
     console = Console()
 
-    rule("[bold]Starting Port Forwarding[/bold]")
+    if args.debug:
+        rule("[bold]Starting Port Forwarding[/bold]")
 
     try:
         if not cfg.jumphost_url:
