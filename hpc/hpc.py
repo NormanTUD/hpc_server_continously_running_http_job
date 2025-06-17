@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Very small HTTP server that shows the machine’s hostname and greets the user.
+Very small HTTP server that shows the machine’s hostname, greets the user,
+and shows GPU info if available via nvidia-smi.
 
 Start the server with:
     python3 hpc.py
@@ -9,6 +10,7 @@ Then visit the printed URL or check ~/hpc_server_host_and_file.
 
 import socket
 import os
+import subprocess
 from flask import Flask, request
 from werkzeug.serving import make_server
 
@@ -16,14 +18,37 @@ app = Flask(__name__)
 HOSTNAME = socket.gethostname()
 
 
+def get_nvidia_smi_output():
+    """Return the output of `nvidia-smi` if available, otherwise None."""
+    try:
+        completed = subprocess.run(
+            ["nvidia-smi"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return completed.stdout
+    except FileNotFoundError:
+        return None
+    except subprocess.CalledProcessError as e:
+        return f"nvidia-smi failed:\n{e.stderr}"
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    """Root page — shows hostname and an optional personalised greeting."""
+    """Root page — shows hostname, optional greeting, and GPU info."""
     name = request.form.get("name")
     if name:
         greeting = f"Hi {name}. This script runs on {HOSTNAME}."
     else:
         greeting = f"This script runs on {HOSTNAME}."
+
+    nvidia_output = get_nvidia_smi_output()
+    if nvidia_output is not None:
+        gpu_info = f"<h2>GPU Info (from nvidia-smi)</h2><pre>{nvidia_output}</pre>"
+    else:
+        gpu_info = "<h2>No GPU found or nvidia-smi not available.</h2>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -35,6 +60,7 @@ def index():
     <input id="name" name="name" type="text" placeholder="Enter your name" required>
     <button type="submit">Send</button>
   </form>
+  {gpu_info}
 </body>
 </html>"""
 
