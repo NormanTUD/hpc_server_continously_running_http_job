@@ -321,21 +321,23 @@ async def read_remote_host_port(cfg: SSHConfig) -> tuple[str, int]:
 @beartype
 def start_port_forward(cfg: SSHConfig, remote_host: str, remote_port: int, local_port: int):
     console.rule("[bold]Starting Port Forwarding[/bold]")
-
     try:
+        # Proxy command für Jumphost SSH-Tunnel
         ssh_proxy_command = f"ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"
         ssh_proxy = paramiko.ProxyCommand(ssh_proxy_command)
 
         forwarder = SSHTunnelForwarder(
-            (remote_host, remote_port),
+            ssh_address_or_host=cfg.jumphost_url,
             ssh_proxy=ssh_proxy,
+            ssh_username=cfg.username,
             local_bind_address=('localhost', local_port),
-            ssh_username=cfg.username
+            remote_bind_address=(remote_host, remote_port)  # WICHTIG: remote bind muss angegeben sein
         )
 
         forwarder.start()
         console.log(f"[red]Forwarding localhost:{local_port} -> {remote_host}:{remote_port}[/red]")
         return forwarder
+
     except Exception as e:
         console.log(f"[red]Failed to start port forwarding[/red]")
         raise e
