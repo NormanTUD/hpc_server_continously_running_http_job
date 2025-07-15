@@ -119,7 +119,7 @@ def build_ssh_cmd(
         "-o", "ConnectTimeout=10",
         "-o", "ControlMaster=auto",
         "-o", "ControlPersist=60",
-        "-o", "ControlPath=~/.ssh/ctl-%r@%h:%p",
+        #"-o", "ControlPath=~/.ssh/ctl-%r@%h:%p",
     ]
     if cfg.jumphost_url:
         options.extend(["-J", cfg.jumphost_url])
@@ -128,6 +128,7 @@ def build_ssh_cmd(
         options.append("-tt")  # force TTY allocation (Slurm sbatch often needs it)
 
     cmd = ["ssh", *options, cfg.target, remote_cmd]
+    #print(" ".join(cmd))
     return " ".join(shlex.quote(a) for a in cmd)
 
 
@@ -515,9 +516,6 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         rule("[bold]Starting Port Forwarding[/bold]")
 
     try:
-        if not cfg.jumphost_url:
-            raise ValueError("Jumphost URL ist nicht gesetzt!")
-
         ssh_cmd_parts = [
             "ssh",
             "-L", f"{local_port}:{remote_host}:{remote_port}",
@@ -718,7 +716,11 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
     console.print(f"Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
 
     target_url = f"{args.username}@{args.hpc_system_url}"
-    jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}"
+
+    jumphost_url = None
+
+    if args.jumphost_url:
+        jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}"
 
     # Try primary host
     primary_cfg = SSHConfig(
