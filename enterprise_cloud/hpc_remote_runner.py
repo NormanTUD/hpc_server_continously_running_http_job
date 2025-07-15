@@ -77,7 +77,7 @@ def rule (msg: str) -> None:
     if args.debug:
         console.rule(msg)
     else:
-        console.print(f"-> {msg}")
+        console.print(f"→ {msg}")
 
 @dataclass(slots=True)
 class SSHConfig:
@@ -253,11 +253,10 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
     - None  wenn kein Job RUNNING oder PENDING ist oder Job nicht in der squeue vorhanden ist
     """
     try:
-        user_expr = "$(whoami)"
         # Args werden hier angenommen global oder als Teil von cfg; am besten übergeben!
         job_name = shlex.quote(cfg.hpc_job_name) if hasattr(cfg, "hpc_job_name") else shlex.quote(args.hpc_job_name)
 
-        list_cmd = f"squeue -u {user_expr} -h -o '%j|%T' | grep -F {job_name} || true"
+        list_cmd = f"squeue --me -h -o '%j|%T' | grep -F {job_name} || true"
         cp = await ssh_run(cfg, list_cmd)
         lines = cp.stdout.strip().splitlines()
 
@@ -387,6 +386,7 @@ async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
 
     while True:
         status = await job_status_in_squeue(cfg)
+        print(f"wait_for_job_running_or_absent: status = {status}")
         if status is True:
             return True
         if status is None:
