@@ -394,7 +394,7 @@ async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
         await asyncio.sleep(poll_interval)
 
 @beartype
-async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
+async def read_remote_host_port(cfg: SSHConfig, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig]) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
@@ -404,7 +404,8 @@ async def read_remote_host_port(cfg: SSHConfig) -> Optional[tuple[str, int]]:
 
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
-        return None
+        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+        await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
 
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
@@ -526,8 +527,8 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         # Falls ein Jumphost gesetzt ist, nutzen wir ihn über ProxyJump oder ProxyCommand
         if hasattr(cfg, "proxyjump") and cfg.proxyjump:
             ssh_cmd_parts += ["-J", cfg.proxyjump]
-        else:
-            ssh_cmd_parts += ["-o", f"ProxyCommand=ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"]
+        #else:
+        #    ssh_cmd_parts += ["-o", f"ProxyCommand=ssh -W %h:%p {shlex.quote(cfg.jumphost_url)}"]
 
         if hasattr(cfg, "identity_file") and cfg.identity_file:
             ssh_cmd_parts += ["-i", cfg.identity_file]
@@ -550,7 +551,7 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         time.sleep(1.0)
         if process.poll() is not None:
             err_output = process.stderr.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"SSH-Forwarding failed:\n{err_output}")
+            console.print(f"[red]SSH-Forwarding failed:\n{err_output}. Command: {ssh_cmd_parts}[/red]")
 
         console.log(f"[green]Port forwarding is running: http://localhost:{local_port} -> {remote_host}:{remote_port}[/green]")
         return SSHForwardProcess(process, local_port, remote_host, remote_port)
@@ -622,7 +623,7 @@ def kill_process(pid: int) -> None:
         console.print(f"[red]❌EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
-async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, Optional[SSHForwardProcess]]:
+async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig]) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
     """
@@ -639,7 +640,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
 
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg)
 
         if ret is not None:
             host, port = ret
@@ -651,7 +652,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg)
+                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg)
                         if ret is not None:
                             new_host, new_port = ret
 
@@ -671,6 +672,9 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                         else:
                             console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
+                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg)
+
+                            return ok, fwd
                 except Exception as e:
                     console.print(f"[red]❌Remote job on {cfg.target} appears to have stopped: {e}[/red]")
                     try:
@@ -692,7 +696,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path) -> tuple[bool, O
         console.print(f"[red]❌Host {cfg.target} failed: {exc}[/red]")
         return False, None
 
-async def main() -> None:  # noqa: C901 – a bit long but readable
+async def main() -> None:
     global args
     parser = build_cli()
     args = parser.parse_args()
@@ -705,74 +709,78 @@ async def main() -> None:  # noqa: C901 – a bit long but readable
 
     rule(f"Checking if port is already in use")
 
-    # --- Port already in use? ---
     existing_proc_info = find_process_using_port(args.local_port)
     if existing_proc_info:
         pid, name = existing_proc_info
         console.print(f"[red]❌Local port {args.local_port} already used by PID {pid} ({name})[/red]")
-
         sys.exit(2)
 
     console.print(f"Starting with [bold]{args.hpc_system_url}[/bold]  (retries={args.retries})")
 
     target_url = f"{args.username}@{args.hpc_system_url}"
+    jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}" if args.jumphost_url else None
 
-    jumphost_url = None
-
-    if args.jumphost_url:
-        jumphost_url = f"{args.jumphost_username}@{args.jumphost_url}"
-
-    # Try primary host
     primary_cfg = SSHConfig(
-        target          = target_url,
-        jumphost_url    = jumphost_url,
-        retries         = args.retries,
-        debug           = args.debug,
-        username        = args.username,
-        jumphost_username = args.jumphost_username
+        target=target_url,
+        jumphost_url=jumphost_url,
+        retries=args.retries,
+        debug=args.debug,
+        username=args.username,
+        jumphost_username=args.jumphost_username,
     )
-    ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir)
+
+    fallback_cfg = None
+    if args.fallback_system_url:
+        fallback_cfg = SSHConfig(
+            target=f"{args.username}@{args.fallback_system_url}",
+            jumphost_url=jumphost_url,
+            retries=args.retries,
+            debug=args.debug,
+            username=args.username,
+            jumphost_username=args.jumphost_username,
+        )
+
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
+
+async def connect_and_tunnel(
+    primary_cfg: SSHConfig,
+    fallback_cfg: Optional[SSHConfig],
+    local_hpc_script_dir: str
+) -> None:
+    # Versuch mit Haupt-Host
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
-            while True:  # Keep process alive
+            while True:
                 await asyncio.sleep(10)
         except KeyboardInterrupt:
             console.print("\n[cyan]Stopping tunnel…[/cyan]")
             fwd.stop()
             return
 
-    if args.fallback_system_url:
-        target_url = f"{args.username}@{args.fallback_system_url}"
-
+    # Falls Haupt-Host fehlschlägt und Fallback definiert
+    if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        fallback_cfg = SSHConfig(
-            target          = target_url,
-            jumphost_url    = jumphost_url,
-            retries         = args.retries,
-            debug           = args.debug,
-            username        = args.username,
-            jumphost_username = args.jumphost_username
-        )
-        ok, fwd = await run_with_host(fallback_cfg, args.local_hpc_script_dir)
-        if not ok:
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg)
+        if ok:
+            console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
+            try:
+                while True:
+                    await asyncio.sleep(10)
+            except KeyboardInterrupt:
+                console.print("\n[cyan]Stopping tunnel…[/cyan]")
+                fwd.stop()
+                return
+        else:
             console.print("[bold red]❌Both hosts failed.  Giving up.[/bold red]")
             sys.exit(1)
 
-        console.print("[bold green]✓  Tunnel to fallback host established.  Press Ctrl+C to stop.[/bold green]")
     else:
         console.print("[red]❌No fallback host defined. Use --fallback-system-url to define a fallback-host[/red]")
-
         if fwd is not None:
             fwd.stop()
         sys.exit(1)
-    try:
-        while True:
-            await asyncio.sleep(10)
-    except KeyboardInterrupt:
-        console.print("\n[cyan]Stopping tunnel…[/cyan]")
-        fwd.stop()
-
 
 if __name__ == "__main__":
     try:
