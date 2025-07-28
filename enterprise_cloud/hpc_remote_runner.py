@@ -307,8 +307,7 @@ async def ensure_job_running(
         job_name = args.hpc_job_name
 
         if await job_status_in_squeue(cfg) is not None:
-            if args.debug:
-                console.print(f"[green]✓ {heartbeat_msg}.[/green]")
+            console.print(f"[green]✓ {heartbeat_msg}.[/green]")
             return None
 
         console.print("[yellow]Job not running – submitting…[/yellow]")
@@ -410,7 +409,7 @@ async def read_remote_host_port(
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port)
 
     remote_path = args.server_and_port_file
     max_attempts = max_attempts_get_server_and_port
@@ -763,7 +762,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port, args.max_attempts_get_server_and_port)
 
 async def run_async(
     hpc_system_url: str,
@@ -771,13 +770,13 @@ async def run_async(
     username: str,
     local_hpc_script_dir: Union[Path, str],
     hpc_script_dir: Union[Path, str],
-    jumphost_url: Optional[str] = None,
-    jumphost_username: Optional[str] = None,
-    retries: int = 3,
-    daemonize: bool = False,
-    fallback_system_url: Optional[str] = None,
-    debug: bool = False,
-    copy: bool = True,
+    jumphost_url: Optional[str],
+    jumphost_username: Optional[str],
+    retries: int,
+    daemonize: bool,
+    fallback_system_url: Optional[str],
+    debug: bool,
+    copy: bool,
     max_attempts_get_server_and_port: int
 ) -> None:
     if not jumphost_username:
@@ -827,12 +826,12 @@ def run_sync(
     username: str,
     local_hpc_script_dir: Union[str, Path, PosixPath],
     hpc_script_dir: Union[str, Path, PosixPath],
-    jumphost_url: Optional[str] = None,
-    jumphost_username: Optional[str] = None,
-    retries: int = 3,
-    daemonize: bool = False,
-    fallback_system_url: Optional[str] = None,
-    debug: bool = False,
+    jumphost_url: Optional[str],
+    jumphost_username: Optional[str],
+    retries: int,
+    daemonize: bool,
+    fallback_system_url: Optional[str],
+    debug: bool,
     max_attempts_get_server_and_port: int
 ) -> None:
     """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
