@@ -87,3 +87,18 @@ In the Folder `hpc`, you will find the following files:
 ## Architecture
 
 ![Architecture](architecture/slurm_service_workflow.png)
+
+## Use as Module
+
+```python
+from enterprise_cloud.hpc_remote_runner import run_sync
+run_sync(
+    hpc_system_url="login1.alpha.hpc.tu-dresden.de",
+    local_port=1234,
+    username="s3811141",
+    local_hpc_script_dir="/home/norman/repos/hpc_server_continously_running_http_job/hpc",
+    jumphost_url="imageseg.scads.ai",
+    jumphost_username="service",
+    retries=3
+)
+```
