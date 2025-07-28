@@ -187,7 +187,7 @@ async def rsync_scripts(
     username: str
 ) -> None:
     """Rsync local script directory to remote."""
-    if not local_dir.is_dir():
+    if not Path(local_dir).is_dir():
         console.print(f"[red]❌ {local_dir} is not a directory.[/red]")
         sys.exit(1)
 
