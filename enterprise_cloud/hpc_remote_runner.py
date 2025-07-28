@@ -620,7 +620,14 @@ def kill_process(pid: int) -> None:
         console.print(f"[red]❌EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
-async def run_with_host(cfg: SSHConfig, local_script_dir: Union[Path, str], primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir: Union[Path, str]) -> tuple[bool, Optional[SSHForwardProcess]]:
+async def run_with_host(
+    cfg: SSHConfig,
+    local_script_dir: Union[Path, str],
+    primary_cfg: SSHConfig,
+    fallback_cfg: Optional[SSHConfig],
+    local_hpc_script_dir: Union[Path, str],
+    copy: bool = True
+) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
     """
@@ -669,7 +676,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Union[Path, str], prim
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                         else:
                             console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
-                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg)
+                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy)
 
                             return ok, fwd
                 except Exception as e:
@@ -751,6 +758,7 @@ async def run_async(
     daemonize: bool = False,
     fallback_system_url: Optional[str] = None,
     debug: bool = False,
+    copy: bool = True
 ) -> None:
     if not jumphost_username:
         jumphost_username = username
@@ -791,7 +799,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
 
 
 def run_sync(
@@ -823,13 +831,14 @@ def run_sync(
 async def connect_and_tunnel(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
-    local_hpc_script_dir: Union[Path, str]
+    local_hpc_script_dir: Union[Path, str],
+    copy: bool = True
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -843,7 +852,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
