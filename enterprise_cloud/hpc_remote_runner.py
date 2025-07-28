@@ -391,7 +391,8 @@ async def read_remote_host_port(
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
     hpc_script_dir: Union[Path, str],
-    copy: bool
+    copy: bool,
+    username: str
 ) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
@@ -403,7 +404,7 @@ async def read_remote_host_port(
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username)
 
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
@@ -651,7 +652,7 @@ async def run_with_host(
 
         await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username)
 
         if ret is not None:
             host, port = ret
@@ -663,7 +664,7 @@ async def run_with_host(
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
+                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, username)
                         if ret is not None:
                             new_host, new_port = ret
 
@@ -751,7 +752,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username)
 
 async def run_async(
     hpc_system_url: str,
