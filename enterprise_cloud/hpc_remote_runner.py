@@ -182,8 +182,8 @@ async def verify_slurm_and_key(cfg: SSHConfig) -> None:
 @beartype
 async def rsync_scripts(
     cfg: SSHConfig,
-    local_dir: PosixPath,
-    remote_dir: str | PosixPath,
+    local_dir: str | Path | PosixPath,
+    remote_dir: str | Path | PosixPath,
 ) -> None:
     """Rsync local script directory to remote."""
     if not local_dir.is_dir():
@@ -286,7 +286,7 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
 @beartype
 async def ensure_job_running(
     cfg: "SSHConfig",
-    remote_script_dir: PosixPath,
+    remote_script_dir: Union[Path, PosixPath, str],
     heartbeat_msg: str = "Job already running"
 ) -> Union[bool, None]:
     """
@@ -389,7 +389,8 @@ async def read_remote_host_port(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
-    hpc_script_dir: Union[Path, str]
+    hpc_script_dir: Union[Path, str],
+    copy: bool
 ) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
@@ -401,7 +402,7 @@ async def read_remote_host_port(
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
 
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
@@ -546,7 +547,11 @@ def start_port_forward(cfg, remote_host: str, remote_port: int, local_port: int)
         import time
         time.sleep(1.0)
         if process.poll() is not None:
-            err_output = process.stderr.read().decode("utf-8", errors="replace")
+            proc_stderr = process.stderr
+            if proc_stderr:
+                err_output = proc_stderr.read().decode("utf-8", errors="replace")
+            else:
+                err_output = "No output found!"
             console.print(f"[red]SSH-Forwarding failed:\n{err_output}. Command: {ssh_cmd_parts}[/red]")
 
         console.log(f"[green]Port forwarding is running: http://localhost:{local_port} -> {remote_host}:{remote_port}[/green]")
@@ -644,7 +649,7 @@ async def run_with_host(
 
         await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy)
 
         if ret is not None:
             host, port = ret
@@ -744,7 +749,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir)
 
 async def run_async(
     hpc_system_url: str,
@@ -805,7 +810,8 @@ def run_sync(
     hpc_system_url: str,
     local_port: int,
     username: str,
-    local_hpc_script_dir: Union[str, Path],
+    local_hpc_script_dir: Union[str, Path, PosixPath],
+    hpc_script_dir: Union[str, Path, PosixPath],
     jumphost_url: Optional[str] = None,
     jumphost_username: Optional[str] = None,
     retries: int = 3,
@@ -819,6 +825,7 @@ def run_sync(
         local_port=local_port,
         username=username,
         local_hpc_script_dir=local_hpc_script_dir,
+        hpc_script_dir=hpc_script_dir,
         jumphost_url=jumphost_url,
         jumphost_username=jumphost_username,
         retries=retries,
