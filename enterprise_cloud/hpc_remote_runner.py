@@ -437,8 +437,7 @@ async def read_remote_host_port(
                 host, port_s = host_port.split(":", 1)
                 port = int(port_s)
 
-                if args.debug:
-                    console.print(f"[green]Remote server: {host}:{port}[/green]")
+                console.print(f"[green]Remote server: {host}:{port}[/green]")
 
                 return host, port
 
