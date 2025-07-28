@@ -102,7 +102,7 @@ setup(
     long_description=open('README.md', encoding="utf-8").read(),
     long_description_content_type='text/markdown',
     name='hpcservice',
-    version='0.01',
+    version='0.1',
     description='Allows you to use a Slurm-based HPC-Cluster for constantly running services',
     author='Norman Koch',
     author_email='norman.koch@tu-dresden.de',
