@@ -742,6 +742,87 @@ async def main() -> None:
 
     await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
 
+
+async def run_async(
+    hpc_system_url: str,
+    local_port: int,
+    username: str,
+    local_hpc_script_dir: str,
+    jumphost_url: Optional[str] = None,
+    jumphost_username: Optional[str] = None,
+    retries: int = 3,
+    daemonize: bool = False,
+    fallback_system_url: Optional[str] = None,
+    debug: bool = False,
+) -> None:
+    if not jumphost_username:
+        jumphost_username = username
+
+    if daemonize:
+        sys.stdout = open(os.devnull, 'w')
+
+    console.rule("Checking if port is already in use")
+
+    existing_proc_info = find_process_using_port(local_port)
+    if existing_proc_info:
+        pid, name = existing_proc_info
+        console.print(f"[red]❌Local port {local_port} already used by PID {pid} ({name})[/red]")
+        sys.exit(2)
+
+    console.print(f"Starting with [bold]{hpc_system_url}[/bold]  (retries={retries})")
+
+    target_url = f"{username}@{hpc_system_url}"
+    jumphost_full = f"{jumphost_username}@{jumphost_url}" if jumphost_url else None
+
+    primary_cfg = SSHConfig(
+        target=target_url,
+        jumphost_url=jumphost_full,
+        retries=retries,
+        debug=debug,
+        username=username,
+        jumphost_username=jumphost_username,
+    )
+
+    fallback_cfg = None
+    if fallback_system_url:
+        fallback_cfg = SSHConfig(
+            target=f"{username}@{fallback_system_url}",
+            jumphost_url=jumphost_full,
+            retries=retries,
+            debug=debug,
+            username=username,
+            jumphost_username=jumphost_username,
+        )
+
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir)
+
+
+def run_sync(
+    hpc_system_url: str,
+    local_port: int,
+    username: str,
+    local_hpc_script_dir: str,
+    jumphost_url: Optional[str] = None,
+    jumphost_username: Optional[str] = None,
+    retries: int = 3,
+    daemonize: bool = False,
+    fallback_system_url: Optional[str] = None,
+    debug: bool = False,
+) -> None:
+    """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
+    asyncio.run(run_async(
+        hpc_system_url=hpc_system_url,
+        local_port=local_port,
+        username=username,
+        local_hpc_script_dir=local_hpc_script_dir,
+        jumphost_url=jumphost_url,
+        jumphost_username=jumphost_username,
+        retries=retries,
+        daemonize=daemonize,
+        fallback_system_url=fallback_system_url,
+        debug=debug,
+    ))
+
 async def connect_and_tunnel(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
