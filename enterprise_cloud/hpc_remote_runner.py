@@ -238,7 +238,7 @@ def to_absolute(path: str | PosixPath)  -> Path:
     return Path(path).expanduser().resolve()
 
 @beartype
-async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
+async def job_status_in_squeue(cfg: "SSHConfig", hpc_job_name: str) -> bool | None:
     """
     Prüft, ob der Job mit hpc_job_name in der squeue läuft.
 
@@ -268,7 +268,7 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
             if len(parts) != 2:
                 continue
             name, state = parts
-            if name == (cfg.hpc_job_name if hasattr(cfg, "hpc_job_name") else args.hpc_job_name):
+            if name == (cfg.hpc_job_name if hasattr(cfg, "hpc_job_name") else hpc_job_name):
                 if state == "RUNNING":
                     return True
                 elif state == "PENDING":
@@ -290,6 +290,7 @@ async def job_status_in_squeue(cfg: "SSHConfig") -> bool | None:
 async def ensure_job_running(
     cfg: "SSHConfig",
     remote_script_dir: Union[Path, PosixPath, str],
+    hpc_job_name: str,
     heartbeat_msg: str = "Job already running"
 ) -> Union[bool, None]:
     """
@@ -305,7 +306,7 @@ async def ensure_job_running(
 
         job_name = args.hpc_job_name
 
-        if await job_status_in_squeue(cfg) is not None:
+        if await job_status_in_squeue(cfg, hpc_job_name) is not None:
             console.print(f"[green]✓ {heartbeat_msg}.[/green]")
             return None
 
@@ -366,7 +367,7 @@ async def ensure_job_running(
         return False
 
 @beartype
-async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
+async def wait_for_job_running_or_absent(cfg: "SSHConfig", hpc_job_name: str) -> bool | None:
     """
     Wartet, bis der Jobstatus True (RUNNING) ist oder None (nicht mehr in squeue).
 
@@ -377,7 +378,7 @@ async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
     poll_interval = 5
 
     while True:
-        status = await job_status_in_squeue(cfg)
+        status = await job_status_in_squeue(cfg, hpc_job_name)
         if status is True:
             return True
         if status is None:
@@ -398,19 +399,20 @@ async def read_remote_host_port(
     local_port: int,
     max_attempts_get_server_and_port: int,
     server_and_port_file: str,
-    delay_between_server_and_port: int
+    delay_between_server_and_port: int,
+    hpc_job_name: str
 ) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
     """
 
-    ret = await wait_for_job_running_or_absent(cfg)
+    ret = await wait_for_job_running_or_absent(cfg, hpc_job_name)
 
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
-        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), hpc_job_name)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name)
 
     remote_path = server_and_port_file
     max_attempts = max_attempts_get_server_and_port
@@ -421,7 +423,7 @@ async def read_remote_host_port(
     attempt = 1
 
     while attempt <= max_attempts:
-        status = await job_status_in_squeue(cfg)
+        status = await job_status_in_squeue(cfg, hpc_job_name)
 
         if status is None:
             return None
@@ -645,7 +647,8 @@ async def run_with_host(
     local_port: int,
     max_attempts_get_server_and_port: int,
     server_and_port_file: str,
-    delay_between_server_and_port: int
+    delay_between_server_and_port: int,
+    hpc_job_name: str
 ) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
@@ -661,9 +664,9 @@ async def run_with_host(
         if copy:
             await rsync_scripts(cfg, local_script_dir, hpc_script_dir, username, jumphost_url, jumphost_username)
 
-        await ensure_job_running(cfg, to_absolute(hpc_script_dir))
+        await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name)
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name)
 
         if ret is not None:
             host, port = ret
@@ -679,7 +682,7 @@ async def run_with_host(
                         if ret is not None:
                             new_host, new_port = ret
 
-                            if await ensure_job_running(cfg, to_absolute(hpc_script_dir), "Heartbeat sent successfully") or new_host != host or new_port != port:
+                            if await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name, "Heartbeat sent successfully") or new_host != host or new_port != port:
                                 host = new_host
                                 port = new_port
 
@@ -695,7 +698,7 @@ async def run_with_host(
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                         else:
                             console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
-                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir, jumphost_url, jumphost_username)
+                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir, jumphost_url, jumphost_username, hpc_job_name)
 
                             return ok, fwd
                 except Exception as e:
@@ -764,7 +767,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port, args.max_attempts_get_server_and_port, args.server_and_port_file, args.delay_between_server_and_port)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port, args.max_attempts_get_server_and_port, args.server_and_port_file, args.delay_between_server_and_port, args.hpc_job_name)
 
 async def run_async(
     hpc_system_url: str,
@@ -781,7 +784,8 @@ async def run_async(
     copy: bool,
     max_attempts_get_server_and_port: int,
     server_and_port_file: str,
-    delay_between_server_and_port: int
+    delay_between_server_and_port: int,
+    hpc_job_name: str
 ) -> None:
     if not jumphost_username:
         jumphost_username = username
@@ -822,7 +826,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name)
 
 def run_sync(
     hpc_system_url: str,
@@ -839,7 +843,8 @@ def run_sync(
     max_attempts_get_server_and_port: int,
     copy: bool,
     server_and_port_file: str,
-    delay_between_server_and_port: int
+    delay_between_server_and_port: int,
+    hpc_job_name: str
 ) -> None:
     """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
     asyncio.run(run_async(
@@ -857,7 +862,8 @@ def run_sync(
         copy=copy,
         max_attempts_get_server_and_port=max_attempts_get_server_and_port,
         server_and_port_file=server_and_port_file,
-        delay_between_server_and_port=delay_between_server_and_port
+        delay_between_server_and_port=delay_between_server_and_port,
+        hpc_job_name=hpc_job_name
     ))
 
 async def connect_and_tunnel(
@@ -872,13 +878,14 @@ async def connect_and_tunnel(
     local_port: int,
     max_attempts_get_server_and_port: int,
     server_and_port_file: str,
-    delay_between_server_and_port: int
+    delay_between_server_and_port: int,
+    hpc_job_name: str
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -893,7 +900,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
