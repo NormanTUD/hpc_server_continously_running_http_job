@@ -90,6 +90,10 @@ In the Folder `hpc`, you will find the following files:
 
 ## Use as Module
 
+```bash
+pip install git+https://github.com/NormanTUD/hpc_server_continously_running_http_job.git
+```
+
 ```python
 from enterprise_cloud.hpc_remote_runner import run_sync
 run_sync(
