@@ -396,7 +396,8 @@ async def read_remote_host_port(
     copy: bool,
     username: str,
     jumphost_url: Optional[str],
-    jumphost_username: Optional[str]
+    jumphost_username: Optional[str],
+    local_port: int
 ) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
@@ -408,7 +409,7 @@ async def read_remote_host_port(
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
 
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
@@ -640,7 +641,8 @@ async def run_with_host(
     hpc_script_dir: Union[Path, str],
     username: str,
     jumphost_url: Optional[str],
-    jumphost_username: Optional[str]
+    jumphost_username: Optional[str],
+    local_port: int
 ) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
@@ -658,12 +660,12 @@ async def run_with_host(
 
         await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port)
 
         if ret is not None:
             host, port = ret
 
-            fwd = start_port_forward(cfg, host, port, args.local_port)
+            fwd = start_port_forward(cfg, host, port, local_port)
 
             async def monitor_job():
                 global host, port
@@ -716,6 +718,7 @@ async def run_with_host(
 
 async def main() -> None:
     global args
+
     parser = build_cli()
     args = parser.parse_args()
 
@@ -758,7 +761,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port)
 
 async def run_async(
     hpc_system_url: str,
@@ -813,7 +816,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
 
 def run_sync(
     hpc_system_url: str,
@@ -851,13 +854,14 @@ async def connect_and_tunnel(
     hpc_script_dir: Union[Path, str],
     username: str,
     jumphost_url: Optional[str],
-    jumphost_username: Optional[str]
+    jumphost_username: Optional[str],
+    local_port: int
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -872,7 +876,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
