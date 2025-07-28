@@ -833,6 +833,7 @@ def run_sync(
     fallback_system_url: Optional[str],
     debug: bool,
     max_attempts_get_server_and_port: int
+    copy: bool
 ) -> None:
     """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
     asyncio.run(run_async(
