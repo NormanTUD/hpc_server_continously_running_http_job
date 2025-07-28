@@ -2,3 +2,4 @@ Flask
 psutil
 beartype
 rich
+tenacity
