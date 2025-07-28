@@ -397,7 +397,8 @@ async def read_remote_host_port(
     username: str,
     jumphost_url: Optional[str],
     jumphost_username: Optional[str],
-    local_port: int
+    local_port: int,
+    max_attempts_get_server_and_port: int
 ) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
@@ -412,7 +413,7 @@ async def read_remote_host_port(
         await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
 
     remote_path = args.server_and_port_file
-    max_attempts = args.max_attempts_get_server_and_port
+    max_attempts = max_attempts_get_server_and_port
     delay_seconds = args.delay_between_server_and_port
 
     last_error: Optional[Exception] = None
@@ -642,7 +643,8 @@ async def run_with_host(
     username: str,
     jumphost_url: Optional[str],
     jumphost_username: Optional[str],
-    local_port: int
+    local_port: int,
+    max_attempts_get_server_and_port: int
 ) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
@@ -660,7 +662,7 @@ async def run_with_host(
 
         await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port)
 
         if ret is not None:
             host, port = ret
@@ -672,7 +674,7 @@ async def run_with_host(
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, username)
+                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, username, max_attempts_get_server_and_port)
                         if ret is not None:
                             new_host, new_port = ret
 
@@ -775,7 +777,8 @@ async def run_async(
     daemonize: bool = False,
     fallback_system_url: Optional[str] = None,
     debug: bool = False,
-    copy: bool = True
+    copy: bool = True,
+    max_attempts_get_server_and_port: int
 ) -> None:
     if not jumphost_username:
         jumphost_username = username
@@ -816,7 +819,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port)
 
 def run_sync(
     hpc_system_url: str,
@@ -830,6 +833,7 @@ def run_sync(
     daemonize: bool = False,
     fallback_system_url: Optional[str] = None,
     debug: bool = False,
+    max_attempts_get_server_and_port: int
 ) -> None:
     """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
     asyncio.run(run_async(
@@ -844,6 +848,7 @@ def run_sync(
         daemonize=daemonize,
         fallback_system_url=fallback_system_url,
         debug=debug,
+        max_attempts_get_server_and_port=max_attempts_get_server_and_port
     ))
 
 async def connect_and_tunnel(
@@ -855,13 +860,14 @@ async def connect_and_tunnel(
     username: str,
     jumphost_url: Optional[str],
     jumphost_username: Optional[str],
-    local_port: int
+    local_port: int,
+    max_attempts_get_server_and_port: int
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -876,7 +882,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
