@@ -109,7 +109,11 @@ run_sync(
     fallback_system_url=None,
     debug=False,
     copy=True,
-    max_attempts_get_server_and_port=3
+    max_attempts_get_server_and_port=3,
+    server_and_port_file="/home/s3811141/TEST_PORT_FILE",
+    delay_between_server_and_port=3,
+    hpc_job_name="TEST",
+    sbatch_file_name="run.sbatch"
 )
 ```
 
