@@ -620,7 +620,7 @@ def kill_process(pid: int) -> None:
         console.print(f"[red]❌EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
-async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir: str) -> tuple[bool, Optional[SSHForwardProcess]]:
+async def run_with_host(cfg: SSHConfig, local_script_dir: Union[Path, str], primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir: Union[Path, str]) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
     """
@@ -744,7 +744,7 @@ async def run_async(
     hpc_system_url: str,
     local_port: int,
     username: str,
-    local_hpc_script_dir: str,
+    local_hpc_script_dir: Union[Path, str],
     jumphost_url: Optional[str] = None,
     jumphost_username: Optional[str] = None,
     retries: int = 3,
@@ -823,11 +823,11 @@ def run_sync(
 async def connect_and_tunnel(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
-    local_hpc_script_dir: str
+    local_hpc_script_dir: Union[Path, str]
 ) -> None:
     # Versuch mit Haupt-Host
 
-    local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
+    #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
     ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir)
     if ok:
