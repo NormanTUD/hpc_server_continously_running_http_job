@@ -6,7 +6,7 @@ authors = [
   {name = "Norman Koch"}
 ]
 version = "2025.07.28-1"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "readme"]
 [tool.setuptools]
 py-modules = []
 [tool.setuptools.dynamic]
