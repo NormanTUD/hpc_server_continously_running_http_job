@@ -53,7 +53,7 @@ if "install" in sys.argv:
     if lib_paths[0].startswith("/usr/lib/"):
         print("You need to be in a virtual environment or something similar to install this package")
     for lib_path in lib_paths:
-        existing_path = os.path.abspath(os.path.join(lib_path, "hpc"))
+        existing_path = os.path.abspath(os.path.join(lib_path, "enterprise_cloud"))
         if os.path.exists(existing_path):
             # We note the need for the warning here, but present it after the command is run, so it's more likely to be seen.
             overlay_warning = True
