@@ -36,12 +36,11 @@ import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path, PosixPath
-from typing import Final, Optional
+from typing import Final, Optional, Any, Union
 import getpass
 import sys
 from pprint import pprint
 import psutil
-from typing import Union
 
 from beartype import beartype
 from rich.console import Console
@@ -391,7 +390,13 @@ async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
         await asyncio.sleep(poll_interval)
 
 @beartype
-async def read_remote_host_port(cfg: SSHConfig, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir) -> Optional[tuple[str, int]]:
+async def read_remote_host_port(
+    cfg: SSHConfig,
+    primary_cfg: SSHConfig,
+    fallback_cfg: Optional[SSHConfig],
+    local_hpc_script_dir: Union[Path, str],
+    hpc_script_dir: Union[Path, str]
+) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
@@ -402,7 +407,7 @@ async def read_remote_host_port(cfg: SSHConfig, primary_cfg: SSHConfig, fallback
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
-        await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
+        await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
 
     remote_path = args.server_and_port_file
     max_attempts = args.max_attempts_get_server_and_port
@@ -626,7 +631,8 @@ async def run_with_host(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
-    copy: bool = True
+    copy: bool,
+    hpc_script_dir: Union[Path, str]
 ) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
@@ -640,11 +646,11 @@ async def run_with_host(
         await verify_slurm_and_key(cfg)
 
         if copy:
-            await rsync_scripts(cfg, local_script_dir, args.hpc_script_dir)
+            await rsync_scripts(cfg, local_script_dir, hpc_script_dir)
 
-        await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
+        await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
 
         if ret is not None:
             host, port = ret
@@ -656,11 +662,11 @@ async def run_with_host(
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir)
+                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir)
                         if ret is not None:
                             new_host, new_port = ret
 
-                            if await ensure_job_running(cfg, to_absolute(args.hpc_script_dir), "Heartbeat sent successfully") or new_host != host or new_port != port:
+                            if await ensure_job_running(cfg, to_absolute(hpc_script_dir), "Heartbeat sent successfully") or new_host != host or new_port != port:
                                 host = new_host
                                 port = new_port
 
@@ -676,7 +682,7 @@ async def run_with_host(
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                         else:
                             console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
-                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy)
+                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir)
 
                             return ok, fwd
                 except Exception as e:
@@ -752,6 +758,7 @@ async def run_async(
     local_port: int,
     username: str,
     local_hpc_script_dir: Union[Path, str],
+    hpc_script_dir: Union[Path, str],
     jumphost_url: Optional[str] = None,
     jumphost_username: Optional[str] = None,
     retries: int = 3,
@@ -799,7 +806,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
 
 
 def run_sync(
@@ -832,13 +839,14 @@ async def connect_and_tunnel(
     primary_cfg: SSHConfig,
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
-    copy: bool = True
+    copy: bool,
+    hpc_script_dir: Union[Path, str]
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -852,7 +860,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
