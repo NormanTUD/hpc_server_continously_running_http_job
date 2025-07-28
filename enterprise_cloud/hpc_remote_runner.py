@@ -59,7 +59,6 @@ except ImportError as err:  # pragma: no cover
         f"first!  ({err})"
     )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Globals & helpers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -98,7 +97,6 @@ def run_local(cmd: str, debug: bool = False, timeout: Optional[int] = 60) -> sub
         check=False,
     )
 
-
 @beartype
 def build_ssh_cmd(
     cfg: SSHConfig,
@@ -127,7 +125,6 @@ def build_ssh_cmd(
     #print(" ".join(cmd))
     return " ".join(shlex.quote(a) for a in cmd)
 
-
 @beartype
 async def ssh_run(
     cfg: SSHConfig,
@@ -151,7 +148,6 @@ async def ssh_run(
                 raise subprocess.CalledProcessError(cp.returncode, cp.args, cp.stdout, cp.stderr)
             return cp
     raise RuntimeError("Unreachable")
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # core – step‑wise helper functions
@@ -182,7 +178,6 @@ async def verify_slurm_and_key(cfg: SSHConfig) -> None:
         console.print(f"[red]❌Missing Slurm tools on {cfg.target}: {', '.join(missing)}[/red]")
         sys.exit(1)
     console.print("[green]✓ Slurm utilities present.[/green]")
-
 
 @beartype
 async def rsync_scripts(
@@ -368,7 +363,6 @@ async def ensure_job_running(
     except Exception as e:
         console.print(f"[red]❌Unexpected error in ensure_job_running: {e}[/red]")
         return False
-
 
 @beartype
 async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
@@ -752,7 +746,6 @@ async def main() -> None:
 
     await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir)
 
-
 async def run_async(
     hpc_system_url: str,
     local_port: int,
@@ -807,7 +800,6 @@ async def run_async(
         )
 
     await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
-
 
 def run_sync(
     hpc_system_url: str,
