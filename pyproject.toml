@@ -1,0 +1,13 @@
+[project]
+name = "hpcservice"
+description = "Allows you to use a Slurm-based HPC-Cluster for constantly running services"
+authors = [
+  {email = "norman.koch@tu-dresden.de"},
+  {name = "Norman Koch"}
+]
+version = "2025.07.28-1"
+dynamic = ["dependencies"]
+[tool.setuptools]
+py-modules = []
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
