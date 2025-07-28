@@ -801,7 +801,7 @@ def run_sync(
     hpc_system_url: str,
     local_port: int,
     username: str,
-    local_hpc_script_dir: str,
+    local_hpc_script_dir: Union[str, Path],
     jumphost_url: Optional[str] = None,
     jumphost_username: Optional[str] = None,
     retries: int = 3,
@@ -829,6 +829,9 @@ async def connect_and_tunnel(
     local_hpc_script_dir: str
 ) -> None:
     # Versuch mit Haupt-Host
+
+    local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
+
     ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
