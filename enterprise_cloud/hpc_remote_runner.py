@@ -845,25 +845,28 @@ def run_sync(
     sbatch_file_name: str
 ) -> None:
     """Synchroner Wrapper für run_async(), damit kein asyncio im Usercode nötig ist."""
-    asyncio.run(run_async(
-        hpc_system_url=hpc_system_url,
-        local_port=local_port,
-        username=username,
-        local_hpc_script_dir=local_hpc_script_dir,
-        hpc_script_dir=hpc_script_dir,
-        jumphost_url=jumphost_url,
-        jumphost_username=jumphost_username,
-        retries=retries,
-        daemonize=daemonize,
-        fallback_system_url=fallback_system_url,
-        debug=debug,
-        copy=copy,
-        max_attempts_get_server_and_port=max_attempts_get_server_and_port,
-        server_and_port_file=server_and_port_file,
-        delay_between_server_and_port=delay_between_server_and_port,
-        hpc_job_name=hpc_job_name,
-        sbatch_file_name=sbatch_file_name
-    ))
+    try:
+        asyncio.run(run_async(
+            hpc_system_url=hpc_system_url,
+            local_port=local_port,
+            username=username,
+            local_hpc_script_dir=local_hpc_script_dir,
+            hpc_script_dir=hpc_script_dir,
+            jumphost_url=jumphost_url,
+            jumphost_username=jumphost_username,
+            retries=retries,
+            daemonize=daemonize,
+            fallback_system_url=fallback_system_url,
+            debug=debug,
+            copy=copy,
+            max_attempts_get_server_and_port=max_attempts_get_server_and_port,
+            server_and_port_file=server_and_port_file,
+            delay_between_server_and_port=delay_between_server_and_port,
+            hpc_job_name=hpc_job_name,
+            sbatch_file_name=sbatch_file_name
+        ))
+    except KeyboardInterrupt:
+        pass
 
 async def connect_and_tunnel(
     primary_cfg: SSHConfig,
