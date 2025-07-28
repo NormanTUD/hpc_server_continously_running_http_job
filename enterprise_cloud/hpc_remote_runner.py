@@ -184,6 +184,7 @@ async def rsync_scripts(
     cfg: SSHConfig,
     local_dir: str | Path | PosixPath,
     remote_dir: str | Path | PosixPath,
+    username: str
 ) -> None:
     """Rsync local script directory to remote."""
     if not local_dir.is_dir():
@@ -201,7 +202,7 @@ async def rsync_scripts(
 
     rule("[bold]Synchronising script directory[/bold]")
 
-    target_user = args.username or getpass.getuser()
+    target_user = username or getpass.getuser()
 
     # Prepare SSH command with optional jumphost
     ssh_cmd = "ssh"
@@ -631,7 +632,8 @@ async def run_with_host(
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
     copy: bool,
-    hpc_script_dir: Union[Path, str]
+    hpc_script_dir: Union[Path, str],
+    username: str
 ) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
@@ -645,7 +647,7 @@ async def run_with_host(
         await verify_slurm_and_key(cfg)
 
         if copy:
-            await rsync_scripts(cfg, local_script_dir, hpc_script_dir)
+            await rsync_scripts(cfg, local_script_dir, hpc_script_dir, username)
 
         await ensure_job_running(cfg, to_absolute(hpc_script_dir))
 
@@ -804,7 +806,7 @@ async def run_async(
             jumphost_username=jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username)
 
 def run_sync(
     hpc_system_url: str,
@@ -839,13 +841,14 @@ async def connect_and_tunnel(
     fallback_cfg: Optional[SSHConfig],
     local_hpc_script_dir: Union[Path, str],
     copy: bool,
-    hpc_script_dir: Union[Path, str]
+    hpc_script_dir: Union[Path, str],
+    username: str
 ) -> None:
     # Versuch mit Haupt-Host
 
     #local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -860,7 +863,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
