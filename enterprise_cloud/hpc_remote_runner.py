@@ -763,7 +763,7 @@ async def main() -> None:
             jumphost_username=args.jumphost_username,
         )
 
-    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port, args.max_attempts_get_server_and_port, args.server_and_port_file, args.delay_between_server_and_port, args.hpc_job_name)
+    await connect_and_tunnel(primary_cfg, fallback_cfg, args.local_hpc_script_dir, args.copy, args.hpc_script_dir, args.username, args.jumphost_url, args.jumphost_username, args.local_port, args.max_attempts_get_server_and_port, args.server_and_port_file, args.delay_between_server_and_port, args.hpc_job_name, args.sbatch_file_name)
 
 async def run_async(
     hpc_system_url: str,
