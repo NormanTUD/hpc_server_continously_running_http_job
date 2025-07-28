@@ -854,7 +854,8 @@ async def connect_and_tunnel(
                 await asyncio.sleep(10)
         except KeyboardInterrupt:
             console.print("\n[cyan]Stopping tunnel…[/cyan]")
-            fwd.stop()
+            if fwd:
+                fwd.stop()
             return
 
     # Falls Haupt-Host fehlschlägt und Fallback definiert
@@ -868,7 +869,8 @@ async def connect_and_tunnel(
                     await asyncio.sleep(10)
             except KeyboardInterrupt:
                 console.print("\n[cyan]Stopping tunnel…[/cyan]")
-                fwd.stop()
+                if fwd:
+                    fwd.stop()
                 return
         else:
             console.print("[bold red]❌Both hosts failed.  Giving up.[/bold red]")
