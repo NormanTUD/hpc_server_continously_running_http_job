@@ -639,7 +639,7 @@ async def run_with_host(
     try:
         await verify_slurm_and_key(cfg)
 
-        if args.copy:
+        if copy:
             await rsync_scripts(cfg, local_script_dir, args.hpc_script_dir)
 
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
