@@ -848,6 +848,7 @@ def run_sync(
         daemonize=daemonize,
         fallback_system_url=fallback_system_url,
         debug=debug,
+        copy=copy,
         max_attempts_get_server_and_port=max_attempts_get_server_and_port
     ))
 
