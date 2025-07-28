@@ -106,3 +106,5 @@ run_sync(
     retries=3
 )
 ```
+
+It's also possible to use `run_async`, when you want it to run asynchronously.
