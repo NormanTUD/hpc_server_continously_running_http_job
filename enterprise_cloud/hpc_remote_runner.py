@@ -391,7 +391,7 @@ async def wait_for_job_running_or_absent(cfg: "SSHConfig") -> bool | None:
         await asyncio.sleep(poll_interval)
 
 @beartype
-async def read_remote_host_port(cfg: SSHConfig, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig]) -> Optional[tuple[str, int]]:
+async def read_remote_host_port(cfg: SSHConfig, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir) -> Optional[tuple[str, int]]:
     """
     Poll remote server_and_port_file until it exists and contains "host:port",
     then parse and return it.
@@ -620,7 +620,7 @@ def kill_process(pid: int) -> None:
         console.print(f"[red]❌EUnexpected error while terminating process {pid}: {e}[/red]")
 
 @beartype
-async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig]) -> tuple[bool, Optional[SSHForwardProcess]]:
+async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSHConfig, fallback_cfg: Optional[SSHConfig], local_hpc_script_dir: str) -> tuple[bool, Optional[SSHForwardProcess]]:
     global host, port
 
     """
@@ -637,7 +637,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSH
 
         await ensure_job_running(cfg, to_absolute(args.hpc_script_dir))
 
-        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg)
+        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir)
 
         if ret is not None:
             host, port = ret
@@ -649,7 +649,7 @@ async def run_with_host(cfg: SSHConfig, local_script_dir: Path, primary_cfg: SSH
                 try:
                     while True:
                         await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg)
+                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir)
                         if ret is not None:
                             new_host, new_port = ret
 
@@ -829,7 +829,7 @@ async def connect_and_tunnel(
 
     local_hpc_script_dir = Path(local_hpc_script_dir).expanduser().resolve()
 
-    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg)
+    ok, fwd = await run_with_host(primary_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir)
     if ok:
         console.print("[bold green]✓  All done – tunnel is up.  Press Ctrl+C to stop.[/bold green]")
         try:
@@ -843,7 +843,7 @@ async def connect_and_tunnel(
     # Falls Haupt-Host fehlschlägt und Fallback definiert
     if fallback_cfg is not None:
         console.print("[yellow]Trying fallback host…[/yellow]")
-        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg)
+        ok, fwd = await run_with_host(fallback_cfg, local_hpc_script_dir, primary_cfg, fallback_cfg, local_hpc_script_dir)
         if ok:
             console.print("[bold green]✓  All done – tunnel is up (fallback).  Press Ctrl+C to stop.[/bold green]")
             try:
