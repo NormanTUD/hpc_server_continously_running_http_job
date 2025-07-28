@@ -74,10 +74,7 @@ def dier (msg: Any) -> None:
 
 @beartype
 def rule (msg: str) -> None:
-    if args.debug:
-        console.rule(msg)
-    else:
-        console.print(f"→ {msg}")
+    console.rule(msg)
 
 @dataclass(slots=True)
 class SSHConfig:
