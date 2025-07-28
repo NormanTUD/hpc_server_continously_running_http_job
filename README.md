@@ -100,10 +100,16 @@ run_sync(
     hpc_system_url="login1.alpha.hpc.tu-dresden.de",
     local_port=1234,
     username="s3811141",
-    local_hpc_script_dir="/home/norman/repos/hpc_server_continously_running_http_job/hpc",
-    jumphost_url="imageseg.scads.ai",
-    jumphost_username="service",
-    retries=3
+    local_hpc_script_dir="/home/service/test/randomtest_75054",
+    retries=3,
+    hpc_script_dir="/home/s3811141/test_test",
+    jumphost_url=None,
+    jumphost_username=None,
+    daemonize=False,
+    fallback_system_url=None,
+    debug=False,
+    copy=True,
+    max_attempts_get_server_and_port=3
 )
 ```
 
