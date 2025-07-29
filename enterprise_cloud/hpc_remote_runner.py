@@ -409,7 +409,7 @@ async def read_remote_host_port(
     ret = await wait_for_job_running_or_absent(cfg, hpc_job_name)
 
     if ret is None:
-        console.print(f"[red]❌The job seems to have been deleted.[/red]")
+        console.print("[red]❌The job seems to have been deleted.[/red]")
         await ensure_job_running(cfg, to_absolute(str(hpc_script_dir)), hpc_job_name, sbatch_file_name)
         await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name, sbatch_file_name)
 
@@ -448,7 +448,7 @@ async def read_remote_host_port(
                 await asyncio.sleep(delay_seconds)
                 attempt += 1
         else:
-            console.log(f"Job not yet running")
+            console.log("Job not yet running")
             await asyncio.sleep(delay_seconds)
 
     console.print(f"[red]❌Remote host file not found after {max_attempts} attempts[/red]")
@@ -729,7 +729,7 @@ async def main() -> None:
     if args.daemonize:
         sys.stdout = open(os.devnull, 'w')
 
-    rule(f"Checking if port is already in use")
+    rule("Checking if port is already in use")
 
     existing_proc_info = find_process_using_port(args.local_port)
     if existing_proc_info:
