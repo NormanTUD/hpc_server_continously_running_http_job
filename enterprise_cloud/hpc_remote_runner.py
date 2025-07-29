@@ -412,7 +412,7 @@ async def read_remote_host_port(
 
     if ret is None:
         console.print(f"[red]❌The job seems to have been deleted.[/red]")
-        await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name, sbatch_file_name)
+        await ensure_job_running(cfg, to_absolute(str(hpc_script_dir)), hpc_job_name, sbatch_file_name)
         await connect_and_tunnel(primary_cfg, fallback_cfg, local_hpc_script_dir, copy, hpc_script_dir, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name, sbatch_file_name)
 
     remote_path = server_and_port_file
@@ -662,7 +662,7 @@ async def run_with_host(
         if copy:
             await rsync_scripts(cfg, local_script_dir, hpc_script_dir, username, jumphost_url, jumphost_username)
 
-        await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name, sbatch_file_name)
+        await ensure_job_running(cfg, to_absolute(str(hpc_script_dir)), hpc_job_name, sbatch_file_name)
 
         ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name, sbatch_file_name)
 
