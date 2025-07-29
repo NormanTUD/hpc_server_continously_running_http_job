@@ -50,6 +50,7 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 
 host = None
 port = None
+args = None
 
 try:
     from subprocess import Popen, DEVNULL, PIPE
