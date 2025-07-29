@@ -42,8 +42,6 @@ import psutil
 
 from beartype import beartype
 from rich.console import Console
-from rich.table import Table
-from rich.text import Text
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 host = None
@@ -65,12 +63,12 @@ except ImportError as err:  # pragma: no cover
 console: Final = Console(highlight=False)
 
 @beartype
-def dier (msg: Any) -> None:
+def dier(msg: Any) -> None:
     pprint(msg)
     sys.exit(10)
 
 @beartype
-def rule (msg: str) -> None:
+def rule(msg: str) -> None:
     console.rule(msg)
 
 @dataclass(slots=True)
