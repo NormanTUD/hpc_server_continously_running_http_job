@@ -24,6 +24,7 @@ see what is happening.
 
 from __future__ import annotations
 
+import sys
 import argparse
 import signal
 import atexit
@@ -32,13 +33,11 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path, PosixPath
 from typing import Final, Optional, Any, Union
 import getpass
-import sys
 from pprint import pprint
 import psutil
 
