@@ -662,53 +662,53 @@ async def run_with_host(
 
         ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, copy, username, jumphost_url, jumphost_username, local_port, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port, hpc_job_name, sbatch_file_name)
 
-        if ret is not None:
-            host, port = ret
-
-            fwd = start_port_forward(cfg, host, port, local_port)
-
-            async def monitor_job():
-                global host, port
-                try:
-                    while True:
-                        await asyncio.sleep(args.heartbeat_time)
-                        ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, username, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
-                        if ret is not None:
-                            new_host, new_port = ret
-
-                            if await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name, sbatch_file_name, "Heartbeat sent successfully") or new_host != host or new_port != port:
-                                host = new_host
-                                port = new_port
-
-                                existing_proc_info = find_process_using_port(args.local_port)
-                                if existing_proc_info:
-                                    pid, name = existing_proc_info
-
-                                    console.log(f"Local-Port is already used by process {pid} ({name}). Will kill it to restart it...")
-
-                                    kill_process(pid)
-
-                                    fwd = start_port_forward(cfg, host, port, args.local_port)
-                        else:
-                            console.print("[red]❌Remote job on was not in squeue anymore (B)[/red]")
-                            ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir, jumphost_url, jumphost_username, hpc_job_name)
-
-                            return ok, fwd
-                except Exception as e:
-                    console.print(f"[red]❌Remote job on {cfg.target} appears to have stopped: {e}[/red]")
-                    try:
-                        fwd.stop()  # Beende Portweiterleitung, wenn Job weg
-                    except Exception as e2:
-                        console.print(f"[yellow]⚠️ Failed to stop forwarder cleanly: {e2}[/yellow]")
-
-            # Starte Überwachungs-Task im Hintergrund
-            asyncio.create_task(monitor_job())
-
-            return True, fwd
-        else:
+        if ret is None:
             console.print("[red]❌Remote job on was not in squeue anymore (A)[/red]")
 
             return False, None
+
+        host, port = ret
+
+        fwd = start_port_forward(cfg, host, port, local_port)
+
+        async def monitor_job():
+            global host, port
+            try:
+                while True:
+                    await asyncio.sleep(args.heartbeat_time)
+                    ret = await read_remote_host_port(cfg, primary_cfg, fallback_cfg, local_hpc_script_dir, hpc_script_dir, username, max_attempts_get_server_and_port, server_and_port_file, delay_between_server_and_port)
+                    if ret is not None:
+                        new_host, new_port = ret
+
+                        if await ensure_job_running(cfg, to_absolute(hpc_script_dir), hpc_job_name, sbatch_file_name, "Heartbeat sent successfully") or new_host != host or new_port != port:
+                            host = new_host
+                            port = new_port
+
+                            existing_proc_info = find_process_using_port(args.local_port)
+                            if existing_proc_info:
+                                pid, name = existing_proc_info
+
+                                console.log(f"Local-Port is already used by process {pid} ({name}). Will kill it to restart it...")
+
+                                kill_process(pid)
+
+                                fwd = start_port_forward(cfg, host, port, args.local_port)
+                    else:
+                        console.print("[red]❌Remote job on was not in squeue anymore (B)[/red]")
+                        ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir, jumphost_url, jumphost_username, hpc_job_name)
+
+                        return ok, fwd
+            except Exception as e:
+                console.print(f"[red]❌Remote job on {cfg.target} appears to have stopped: {e}[/red]")
+                try:
+                    fwd.stop()  # Beende Portweiterleitung, wenn Job weg
+                except Exception as e2:
+                    console.print(f"[yellow]⚠️ Failed to stop forwarder cleanly: {e2}[/yellow]")
+
+        # Starte Überwachungs-Task im Hintergrund
+        asyncio.create_task(monitor_job())
+
+        return True, fwd
 
     except Exception as exc:  # noqa: BLE001
         console.print_exception()
