@@ -31,7 +31,6 @@ import atexit
 import asyncio
 import os
 import shlex
-import shutil
 import subprocess
 import textwrap
 from dataclasses import dataclass
@@ -470,7 +469,7 @@ def find_process_using_port(port: int) -> Optional[tuple[int, str]]:
                     except psutil.NoSuchProcess:
                         return (conn.pid, "Unknown")
         return None
-    except Exception as e:
+    except Exception:
         return None
 
 class SSHForwardProcess:
@@ -693,7 +692,7 @@ async def run_with_host(
 
                                     fwd = start_port_forward(cfg, host, port, args.local_port)
                         else:
-                            console.print(f"[red]❌Remote job on was not in squeue anymore (B)[/red]")
+                            console.print("[red]❌Remote job on was not in squeue anymore (B)[/red]")
                             ok, fwd = await run_with_host(primary_cfg, args.local_hpc_script_dir, primary_cfg, fallback_cfg, copy, hpc_script_dir, jumphost_url, jumphost_username, hpc_job_name)
 
                             return ok, fwd
@@ -709,7 +708,7 @@ async def run_with_host(
 
             return True, fwd
         else:
-            console.print(f"[red]❌Remote job on was not in squeue anymore (A)[/red]")
+            console.print("[red]❌Remote job on was not in squeue anymore (A)[/red]")
 
             return False, None
 
