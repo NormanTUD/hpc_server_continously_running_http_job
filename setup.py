@@ -1,4 +1,5 @@
 from pprint import pprint
+from setuptools import find_packages
 import glob
 import os
 import site
@@ -108,7 +109,7 @@ setup(
     author_email='norman.koch@tu-dresden.de',
     url='https://github.com/NormanTUD/hpc_server_continously_running_http_job.git',
     install_requires=install_requires,
-    packages=['enterprise_cloud',],
+    packages=find_packages(),
     data_files=[('bin', all_needed_files)],
     include_package_data=True,
     platforms=["Linux"]
